@@ -14,6 +14,20 @@ typora-copy-images-to: ./README_images/
 课程源码 <https://gitee.com/liaoshixiong/girl>
 
 
+# Section 3:项目属性配置（部分）
+
+## 切换 profiles
+
+可以在配置文件里切换，也可以在启动的时候
+`java -jar app.jar --spring.profiles.active=dev`。
+
+因为是在 项目根目录下 添加的 yml 配置文件的属性名是一样的，
+**`src/main/resources` 目录下的配置将被忽略**：
+1. 所有的 url 都需要添加 8080 端口。
+2. 下面 2 个接口可以看到 `file.` 字符：
+	- http://localhost:8080/hello
+	- http://localhost:8080/hi/say 或 http://localhost:8080/hi/price
+
 
 # Section 4: Controller 的使用 及 处理请求中的参数
 
