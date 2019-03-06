@@ -17,6 +17,10 @@ public class GirlControllerRESTful {
 
 	@Autowired
 	private GirlRepository girlRepository;
+	
+    @Autowired
+    private GirlService girlService;
+
 
 	/**
 	 * 查询所有女生列表
@@ -68,5 +72,9 @@ public class GirlControllerRESTful {
         return girlRepository.findByAge(age);
     }
 
+    @PostMapping("/girls/two")
+    public void girlInsertTwo(@RequestBody List<Girl> girlsList) throws Exception {
+        girlService.insertTwo(girlsList);
+    }
 
 }

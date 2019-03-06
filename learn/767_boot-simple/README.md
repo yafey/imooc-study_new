@@ -15,6 +15,34 @@ typora-copy-images-to: ./README_images/
 
 
 
+
+
+# Section 6: JPA 事务的简单例子
+
+只有查询的时候可以不加事务，其它任何操作都要加事务。
+
+注意检查 MySQL 的引擎 ： InnoDB是事务型数据库的首选引擎。
+
+## API
+
+| URL| HTTP Method | body| 描述|
+|-----|-----|-----|-----|
+| http://localhost:8080/girls/two | POST | [{<br/>"cupSize":"A",<br/>"age":"18"<br/>},{<br/>"cupSize":"B",<br/>"age":"41"<br/>}] | 同时插入2条记录， age>40 的记录不能插入。 |
+
+## Q: Spring Boot @Transactional注解事务不回滚不起作用无效
+
+A: 视频中，使用的是 将数据库字段该成 1 位， 然后插入 2 位的字符， 抛出的是 DataAccessException , 自己抛出的是 Exception , 需要在注解上手动指定 rollbackFor 值 （    `@Transactional(rollbackFor = Exception.class)` ）。
+
+参考： 
+- [Spring boot 中事务注解@Transactional 回滚失效问题](https://www.imooc.com/wenda/detail/390931) : 慕课网， 同一视频，视频中代码，与自己的不同。
+
+- [Spring 踩坑之@Transactional 神奇失效](https://segmentfault.com/a/1190000014617571)
+
+- [spring boot @Transactional注解事务不回滚不起作用无效- yueguanyun](https://blog.csdn.net/zdyueguanyun/article/details/80236401)
+
+- [转载--SpringBoot笔记】当@Transactional不起作用如何排查问题](https://blog.csdn.net/VicdorLin/article/details/82799408)
+
+
 # Section 5-2: JPA 自定义简单查询
 
 自定义简单查询(只需定义 DAO 接口方法)，不需要写实现。 
