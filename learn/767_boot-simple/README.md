@@ -14,6 +14,142 @@ typora-copy-images-to: ./README_images/
 课程源码 <https://gitee.com/liaoshixiong/girl>
 
 
+#  Section 5: SpringBoot 中使用 Spring-Data-JPA
+
+##  不用写 DAO 实现 CRUD。
+
+### Spring-Data-JPA
+JPA(Java Persistence API) 定义了一系列对象持久化的标准，目前实现这一规范的产品有 Hibernate 、TopLink 等。
+Spring-Data-JPA 就是 Spring 对 Hibernate 实现的 整合。
+
+- **不需要设置 `spring.datasource.driver-class-name` , 设置了会有如下提醒：**
+
+    ```log
+    Loading class `com.mysql.jdbc.Driver'. This is deprecated. The new
+    driver class is `com.mysql.cj.jdbc.Driver'. The driver is automatically
+    registered via the SPI and manual loading of the driver class is
+    generally unnecessary.
+    ```
+
+- 数据库信息配置 （此处按 properties 风格， yml 见项目源码）：
+    ```properties
+    # 不要忘记 create database dbgirl;
+    spring.datasource.url=jdbc:mysql://127.0.0.1:3306/
+    spring.datasource.username=root
+    spring.datasource.password=123456
+    spring.datasource.driver-class-name=com.mysql.jdbc.Driver
+    ```
+
+- JPA 设置
+  - `show-sql = true` ：打印出 SQL 语句，
+
+  - `ddl-auto = update` ：如果 table 已经存在，不会删除 ( `hsqldb, h2, and derby` 数据库的默认值为 `create-drop` , 其他的默认值为 `none` )。 [^Spring 官网 Doc@2019.Mar.06--V2.1.3.RELEASE]
+
+  - `database = mysql` 和 `database-platform = org.hibernate.dialect.MySQL5InnoDBDialect` ： 设置 MySQL 存储引擎为 InnoDB ， 不设置默认为 MyISAM 引擎 （不支持事务）。
+
+    ```properties
+    # 打印出 SQL 语句
+    spring.jpa.show-sql = true
+    spring.jpa.hibernate.ddl-auto = update
+    spring.jpa.database = mysql
+    # 不加下面这句则默认为 MyISAM 引擎
+    spring.jpa.database-platform = org.hibernate.dialect.MySQL5InnoDBDialect
+    ```
+
+
+>[spring-boot工程中，jpa下hibernate的ddl-auto的各种属性](https://blog.csdn.net/zhangtongpeng/article/details/79609942
+"CSDN")
+>`spring.jpa.hibernate.ddl-auto`
+
+| 属性值                 | 作用|
+| ---------------------- |------------------------------------------------------------ |
+| `ddl-auto:create`      | 每次运行该程序，没有表格会新建表格，表内有数据会清空         |
+| `ddl-auto:create-drop` | 每次程序结束的时候会清空表|
+| `ddl-auto:update`      | 每次运行程序，没有表格会新建表格，表内有数据不会清空，只会更新 |
+| `ddl-auto:validate`    | 运行程序会校验数据与数据库的字段类型是否相同，不同会报错     |
+| `none`                 | 除了 `hsqldb, h2, derby` 数据库之外的 默认值，什么都不做。   |
+
+[^Spring 官网 Doc@2019.Mar.06--V2.1.3.RELEASE]:https://docs.spring.io/spring-boot/docs/current/reference/html/howto-database-initialization.html#howto-initialize-a-database-using-hibernate
+
+### 确认数据库引擎
+
+MySQL 查看表的引擎必须为 InnoDB。
+```sql
+show table status from mytestdb;
+
+# 修改表的引擎：
+alter table table_name engine=innodb;
+```
+
+MyISAM拥有较高的插入、查询速度，但**不支持事务**。
+InnoDB是事务型数据库的首选引擎，支持事务安全表（ACID），支持行锁定和外键。
+
+![img](README_images/5.2892592998-5b91dde639c4d_articlex.png)
+
+
+
+> 参考： [mysql-dialect-refactoring](http://in.relation.to/2017/02/20/mysql-dialect-refactoring/) ： http://in.relation.to/2017/02/20/mysql-dialect-refactoring/
+>
+> It （Hibernate） clearly says :
+>
+> > Traditionally, MySQL used the non-transactional MyISAM storage engine, and this is the default storage engine for all Dialects that are older than MySQL55Dialect. From MySQL55Dialect onwards, the InnoDB storage engine is used by default.
+
+
+
+
+### API
+
+记得在 request 的 header 中添加 `content-type=application/json;charset=UTF-8` , 不然会报 content 不合法。
+
+![5.RESTful-api.png](README_images/5.RESTful-api.png)
+
+| URL| HTTP Method | body| 描述|
+|-----|-----|-----|-----|
+| http://localhost:8080/girls | GET | N/A| 查询所有女生列表 |
+| http://localhost:8080/girls | POST| { <br/>"cupSize":"F", <br/>"age":"18"<br/>} | 添加一个女生 (id 数据库自动生成), @RequestBody 获取 body 中的 json |
+| http://localhost:8080/girls/123 |GET| N/A| 查询一个女生 (id=123)|
+| http://localhost:8080/girls/1?cupSize=G&age=20 | PUT | N/A| 更新（按理参数应该放在 body 中， 只是demo为了演示与 POST 方式时的不同的注解使用） |
+| http://localhost:8080/girls/123 | DELETE | N/A| 删除|
+
+
+
+###Q: 配置文件中的属性名对应的类？
+A: 参考 [Springboot应用中配置属性类和配置属性项的对应关系总结](https://blog.csdn.net/andy_zhang2007/article/details/86309966)
+
+`Spring boot`应用工作时使用到的配置属性来源自某个配置属性`bean`，而这些配置属性`bean`基于相应的配置属性类和一组配置属性项创建。下表总结了`Spring boot`应用中框架内置的用于创建配置属性`bean`的配置属性类和配置属性项的对应关系 :
+
+> 注意 1 : 这里的配置属性项指的的是外部配置文件中的配置项。这些外部配置文件通常是指`application.properties`/`application.xml`/`application.yml`。
+
+> 注意 2 : 这里的配置属性类名字一般都采用`XXXProperties`这种格式的名字，并且使用注解`@ConfigurationProperties`指明该配置属性类要使用哪些配置项。
+
+> 注意 3 : 本文基于一个`Springboot` `Servlet Web`应用总结，同时使用到了`JPA`，具体配置如下 :
+>
+> - `Springboot 2.1.1`
+> - `Spring Data JPA 2.1.3 RELEASE`
+> - `Spring Web 5.1.3 RELEASE`
+> - `Spring Web MVC 5.1.3 RELEASE`
+
+| 配置属性类                                    | 配置属性项前缀             | 功能简介                                 |
+| --------------------------------------------- | -------------------------- | ---------------------------------------- |
+| `o.sf.t.ac.web.ServerProperties`              | `server`                   | `Web`服务器参数配置，比如服务端口地址等  |
+| `o.sf.t.ac.http.HttpProperties`               | `spring.http`              | `TBD`                                    |
+| `o.sf.t.ac.web.servlet.WebMvcProperties`      | `spring.mvc`               | `Spring MVC参数配置`                     |
+| `o.sf.t.ac.web.servlet.MultipartProperties`   | `spring.servlet.multipart` | 文件上传参数配置                         |
+| `o.sf.t.ac.web.ResourceProperties`            | `spring.resources`         | `TBD`                                    |
+| `o.sf.t.ac.jdbc.DataSourceProperties`         | `spring.datasource`        | 数据源参数配置                           |
+| `o.sf.t.ac.orm.jpa.JpaProperties`             | `spring.jpa`               | `JPA`参数配置                            |
+| `o.sf.t.ac.orm.jpa.HibernateProperties`       | `spring.jpa.hibernate`     | `Hibernate ORM`参数配置，和`JPA`配合使用 |
+| `o.sf.t.ac.transaction.TransactionProperties` | `spring.transaction`       | 事务参数配置                             |
+| `o.sf.t.ac.task.TaskExecutionProperties`      | `spring.task.execution`    | `TBD`                                    |
+| `o.sf.t.ac.data.web.SpringDataWebProperties`  | `spring.data.web`          | `TBD`                                    |
+| `o.sf.t.ac.jackson.JacksonProperties`         | `spring.jackson`           | `TBD`                                    |
+| `o.sf.t.ac.transaction.jta.JtaProperties`     | `spring.jta`               | `TBD`                                    |
+| `o.sf.t.ac.info.ProjectInfoProperties`        | `spring.info`              | `TBD`                                    |
+| `o.sf.t.ac.jdbc.JdbcProperties`               | `spring.jdbc`              | `TBD`                                    |
+| `o.sf.t.ac.task.TaskSchedulingProperties`     | `spring.task.scheduling`   | `TBD`                                    |
+
+> 上表中 `o.sf.b.ac`是``org.springframework.boot.autoconfigure`的缩写。
+
 # Section 3:项目属性配置（部分）
 
 ## 切换 profiles
