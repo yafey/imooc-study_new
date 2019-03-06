@@ -62,5 +62,11 @@ public class GirlControllerRESTful {
 	public void girlDelete(@PathVariable Integer id) {
 		girlRepository.deleteById(id);
 	}
+	
+    @GetMapping("/girls/age/{age}")
+    public List<Girl> girlFindByAge(@PathVariable Integer age) {
+        return girlRepository.findByAge(age);
+    }
+
 
 }
