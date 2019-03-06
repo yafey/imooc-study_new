@@ -14,6 +14,69 @@ typora-copy-images-to: ./README_images/
 课程源码 <https://gitee.com/liaoshixiong/girl>
 
 
+
+# Section 4: Controller 的使用 及 处理请求中的参数
+
+## Controller 的使用
+- `@Controller`：处理 http 请求  ，GirlControllerView,
+使用 Spring Boot 自带的 thymeleaf 模板,  http://localhost/index
+- `@RestController`：Spring4 之后新的注解，原来返回 json 需要 `@ResponseBody` 配合 `@Controller`
+- `@RequestMapping`：配置 url 映射。
+
+![1551857612710](README_images/1551857612710.png)
+
+
+## 处理请求中的参数 ，GirlController.
+- `@PathVariable`：获取 url 中的数据  ， http://localhost/hi/say3/123
+- `@RequestParam`：获取请求参数的值  ， http://localhost/hi/say4?id=888 , id 缺省为 0 , http://localhost/hi/say4 。
+- `@GetMapping`：组合注解 ， path/value 可以是多个值，http://localhost/hi/say 或
+http://localhost/hi/price 指向同一个方法。
+
+![1551857698408](/README_images/1551857698408.png)
+
+
+
+## YAML 语法简介
+
+文章格式：
+
+1. **使用空格 Space 缩进表示分层**，不同层次之间的缩进可以使用不同的空格数目，但是同层元素一定左对齐，即前面空格数目相同（不能使用 Tab，各个系统 Tab对应的 Space 数目可能不同，导致层次混乱）
+2. ‘#’表示注释，只能单行注释，从#开始处到行尾
+3. 破折号后面跟一个空格（a dash and space）表示列表
+4. 用冒号和空格表示键值对 key: value
+5. 简单数据（scalars，标量数据）可以不使用引号括起来，包括字符串数据。用单引号或者双引号括起来的被当作字符串数据，在单引号或双引号中使用C风格的转义字符。
+
+数据结构分为：
+
+1. 键，值对（a:1）
+
+2. 列表（- one）
+
+
+
+```yml
+com:
+  yafey:
+    name: "飞哥"
+    age: 18
+    
+# 行内写法， 类似 JSON
+girl: {cupSize: B,age: 18}
+
+# 引用其他配置属性
+content: "cupSize: ${girl.cupSize}, age: ${girl.age}"
+
+```
+
+参考：
+SpringBoot（4）--配置文件（YML语法）
+https://blog.csdn.net/wu2374633583/article/details/79862052
+
+YAML 语言教程  by 阮一峰
+http://www.ruanyifeng.com/blog/2016/07/yaml.html
+
+
+
 # Section 3:项目属性配置（部分）
 
 ## 自定义端口 及 context-path

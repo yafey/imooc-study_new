@@ -1,6 +1,18 @@
 server:
   port: 80
+#  servlet:
+#    context-path: /girl
+
 com:
   yafey:
     name: "飞哥"
     age: 18
+    
+# 行内写法， 类似 JSON
+girl: {cupSize: B,age: 18}
+
+# 引用其他配置属性
+content: "cupSize: ${girl.cupSize}, age: ${girl.age}"
+
+price: 200
+    
