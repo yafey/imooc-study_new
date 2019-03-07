@@ -8,13 +8,18 @@ typora-copy-images-to: ./README_images/
 
 > from https://www.imooc.com/article/260567
 
-由于课程内容引起女学员不适，这门课已经被慕课网下架了... 
+由于课程内容引起女学员不适，这门课已经被慕课网下架了...<br/>
+
 ~~(原始链接：https://www.imooc.com/learn/767.html)~~
 
 课程源码 <https://gitee.com/liaoshixiong/girl>
 
 
+# Section 7 : 回顾课程内容, 及 后续课程目录
 
+后续课程 （learn_810）：[Spring Boot进阶之Web进阶](https://www.imooc.com/learn/810)
+
+![后续课程目录](README_images/7-1.课程回顾.mp4_000327.914.jpg)
 
 
 # Section 6: JPA 事务的简单例子
@@ -48,7 +53,7 @@ A: 视频中，使用的是 将数据库字段该成 1 位， 然后插入 2 位
 自定义简单查询(只需定义 DAO 接口方法)，不需要写实现。 
 注意 方法名要有讲究  findByAge , `findBy<属性名>`。
 
-##Q: JPA 预定义了哪些方法？我们可以扩展哪些查询？有什么规则？
+## Q: JPA 预定义了哪些方法？我们可以扩展哪些查询？有什么规则？
 A: 参见 [【spring boot 系列】spring data jpa 全面解析（实践 + 源码分析）](https://segmentfault.com/a/1190000015047290)
 
 ### 基本查询
@@ -209,6 +214,7 @@ Page<HotelSummary> findByCity(City city, Pageable pageable);
 
 @Query("select h.name as name, avg(r.rating) as averageRating from Hotel h left outer join h.reviews r group by h")
 Page<HotelSummary> findByCity(Pageable pageable);
+
 Page<HotelSummary> hotels = this.hotelRepository.findByCity(new PageRequest(0, 10, Direction.ASC, "name"));
 for(HotelSummary summay:hotels){
     System.out.println("Name" +summay.getName());
@@ -316,7 +322,7 @@ InnoDB是事务型数据库的首选引擎，支持事务安全表（ACID），�
 
 
 
-###Q: 配置文件中的属性名对应的类？
+### Q: 配置文件中的属性名对应的类？
 A: 参考 [Springboot应用中配置属性类和配置属性项的对应关系总结](https://blog.csdn.net/andy_zhang2007/article/details/86309966)
 
 `Spring boot`应用工作时使用到的配置属性来源自某个配置属性`bean`，而这些配置属性`bean`基于相应的配置属性类和一组配置属性项创建。下表总结了`Spring boot`应用中框架内置的用于创建配置属性`bean`的配置属性类和配置属性项的对应关系 :
@@ -376,7 +382,7 @@ A: 参考 [Springboot应用中配置属性类和配置属性项的对应关系�
 - `@RestController`：Spring4 之后新的注解，原来返回 json 需要 `@ResponseBody` 配合 `@Controller`
 - `@RequestMapping`：配置 url 映射。
 
-![1551857612710](README_images/1551857612710.png)
+![4.1551857612710](README_images/4.1551857612710.png)
 
 
 ## 处理请求中的参数 ，GirlController.
@@ -385,7 +391,7 @@ A: 参考 [Springboot应用中配置属性类和配置属性项的对应关系�
 - `@GetMapping`：组合注解 ， path/value 可以是多个值，http://localhost/hi/say 或
 http://localhost/hi/price 指向同一个方法。
 
-![1551857698408](/README_images/1551857698408.png)
+![4.1551857698408](README_images/4.1551857698408.png)
 
 
 
