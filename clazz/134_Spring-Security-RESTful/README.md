@@ -4,6 +4,231 @@ typora-copy-images-to: ./README_images/
 ---
 
 
+
+
+# 第3章 使用 Spring MVC 开发 RESTful API
+
+## 3.1. RESTful 简介 及编写 RESTful API
+
+### 3.1.1. RESTful 第一印象
+
+1. 用 URL 描述资源。
+2. 使用 HTTP 方法描述行为。使用 HTTP 状态码来表示不同的结果。
+3. 使用 JSON 交互数据。
+4. RESTful 只是一种风格，并不是强制的标准。
+
+| 操作类型 |           传统请求           | 请求类型 |  RESTful请求   | 请求类型 |
+| :------: | :--------------------------: | :------: | :------------: | :------: |
+|   查询   |     /user/query?name=tom     |   GET    | /user?name=tom |   GET    |
+|   详情   |      /user/getInfo?id=1      |   GET    |    /user/1     |   GET    |
+|   创建   |    /user/create?name=tom     |   POST   |     /user      |   POST   |
+|   修改   | /user/update?id=1&name=jerry |   POST   |    /user/1     |   PUT    |
+|   删除   |      /user/delete?id=1       |   GET    |    /user/1     |  DELETE  |
+
+#### REST 成熟度模型
+
+![1552223525417](README_images/1552223525417.png)
+
+* Level 0 : The Swamp of POX
+  * 使用 Http 作为传输方式
+* Level 1 : Resources
+  * 引入资源概念
+  * 每个资源有对应的 URL
+* Level 2 : HTTP Verbs
+  * 使用 HTTP 方法进行不同的操作
+  * 使用 HTTP 状态码来表示不同的结果
+* Level 3 : Hypermedia Controls
+  * 使用超媒体
+  * 在资源的表达中包含了链接信息
+
+### 3.1.2. 编写 RESTful API
+
+> - 针对 RESTful API 的测试用例
+>   - `TDD` 测试驱动开发（Test-Driven Development）， 敏捷开发中的一项核心实践和技术，也是一种设计方法论。
+> - 注解 声明 RESTful API  （**`@GetMapping / @PostMapping / @PutMapping / @DeleteMapping`**）
+> - RESTful API 中传递参数  （ **`@RequestParam / @PathVariable / @RequestBody`** ）
+>
+
+dto 包 用于放 输入/输出 的 对象。
+
+测试用例 详见 ： [UserControllerTest.java](C134_imooc-security-demo-browser/src/test/java/com/yafey/web/controller/UserControllerTest.java)
+
+```java
+@RunWith(SpringRunner.class)
+@SpringBootTest
+public class UserControllerTest {
+
+	@Autowired
+	private WebApplicationContext wac;
+
+	private MockMvc mockMvc;
+
+	@Before
+	// Before 注解会在 所有 Test cases 之前 执行， 一般用于 环境初始化。
+	public void setup() {
+		// 伪造 MVC 环境，不用真正的启动 Tomcat。
+		mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
+	}
+
+	@Test
+	public void whenQueryUserListSuccess() throws Exception {
+		// 用伪造的 MVC 环境，模拟发送一个 request ， 作为 perform 方法的参数， 执行后，校验结果是否符合预期。
+		mockMvc.perform(MockMvcRequestBuilders.get("/user")
+				.contentType(MediaType.APPLICATION_JSON_UTF8))
+			.andExpect(MockMvcResultMatchers.status().isOk()) // 判断返回的 status =200 ， 成功。
+			.andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(3));  //  jsonPath 语法 见 https://github.com/json-path/JsonPath
+	}
+}
+```
+
+
+
+#### 3-2.1. 添加常用的方法 ，让 IDE 自动导入（static import）。
+
+`Java -> Editor -> Content Assist -> Favorites` : `New Type` 。
+
+![1552226268635](README_images/1552226268635.png)
+
+
+#### 3-2.2. （Yafey+）java8 链式操作集合。
+
+```java
+@GetMapping("/users")
+public List<User> queryList() {
+
+	// Java 8 : 链式 add
+	// https://www.geeksforgeeks.org/stream-builder-java-examples/
+	//@formatter:off
+	Stream.Builder<User> builder = Stream.builder();
+	List<User> userList = builder
+			.add(new User()).add(new User()).add(new User())
+			.build()
+			.collect(Collectors.toList());
+	// @formatter:on
+	return userList;
+}
+```
+
+#### 3-2.3. 常用注解
+
+> 实际用例 详见 ： [UserController.java](C134_imooc-security-demo-browser/src/main/java/com/yafey/web/controller/UserController.java)
+
+* `@RestController`  ： 标明此 Controller 提供 RESTAPI
+* `@RequestMapping 及 其变体(如：@GetMapping / @PostMapping / @PutMapping / @DeleteMapping)`  ： 映射 http 请求 url 到 java 方法 , 可以标注在 方法 和 类 上。
+* `@RequestParam` ： 映射 **请求参数** 到 java 方法的参数
+* `@PageableDefault` ： 指定分页参数默认值
+* `@PathVariable` 映射 **url 片段** 到 java 方法的参数  (视频 3-3 中提及。)
+  * 在 url 声明中 使用 正则表达式
+* `@RequestBody` 映射 **请求体** 到 java 方法的参数 (视频 3-4 中提及。)
+
+
+
+##### 部分示例及说明
+
+1. `@RequestParam` **默认参数名 与 方法形参名 一致， 也可以自己指定**。
+
+    ```java
+    @GetMapping("/user")
+    public User queryList(@RequestParam(name="username",required=false,defaultValue="defatul as tom") String nickname) {
+    	……方法体……
+    }
+    
+    ```
+
+2. Spring 会自动将 参数绑定到 某个对象上 （UserQueryCondition）。不需要在方法参数上写 `@RequestParam` 注解 (与上面的写法 对比， 更方便，省力。)
+
+    ```java
+    @GetMapping("/userCondition")
+    public UserQueryCondition queryList(UserQueryCondition condition,
+        @PageableDefault(page = 2, size = 17, sort = "username,asc") Pageable pageable) {
+       		 ……方法体……
+    }
+    ```
+
+    
+
+3. 对象的格式化输出：`ReflectionToStringBuilder.toString(<bean 实例变量>, ToStringStyle.MULTI_LINE_STYLE)` 。
+
+4. Spring Data 里面的 Pagable 对象 
+
+    ```java
+    // 请求参数中 传下面的参数 会自动绑定到 Pagable 对象中
+    {
+        "size":"15", // 每页 15 条数据
+        "page":"3", // 第 3 页的数据
+        "sort":"age,desc"  // 查询结果 按照 age desc 降序 排序
+    }
+    
+    // 后台 对象对应 属性
+    log.info("Pageable:pageSize:{},pageNumber:{},sort:{}" , pageable.getPageSize() ,pageable.getPageNumber(),pageable.getSort());
+    // Pageable:pageSize:15,pageNumber:3,sort:age: DESC
+    
+    // 配置 Pageable 默认值, request 中可以不用 上面的 3 个参数。
+    public UserQueryCondition queryList(UserQueryCondition condition, @PageableDefault(page=2,size=17,sort="username,asc") Pageable pageable) {
+     ……方法体……
+    }
+    // Pageable:pageSize:17,pageNumber:2,sort:username,asc: ASC
+    
+    ```
+
+5.   `@PathVariable` 也有和 `@RequestParam` 类似的属性，**默认参数名 与 方法形参名 一致， 也可以自己指定**。
+
+    >  URL 中正则表达式的用法 `:<正则表达式>`  。
+
+    ```java
+    // URL 中使用 正则表达式，限制 用户 id 只能是 数字，
+    @GetMapping("/user/{id:\\d+}")
+    public User getUserDetail(@PathVariable(value = "id", required = true) Integer idxxx) {
+    	return new User().setId(idxxx);
+    }				
+    ```
+
+6. `@RequestBody` , Spring 会通过调用 `HttpMessageConverter` 进行映射 (请求时，需要指明 请求体 的格式， 一般用 JSON 格式) 。
+
+    ```java
+    @PostMapping("/user")
+    public User createUser(@RequestBody User user) {
+    	user.setId(1);
+    	log.info(ReflectionToStringBuilder.toString(user, ToStringStyle.MULTI_LINE_STYLE));
+    	return user;
+    }
+    
+    // 请求时 ， 指定 请求体 的 格式 ， 如下指定为 JSON 格式。
+    @Test
+    public void whenCreateSuccess() throws Exception {
+    	Date date = new Date();
+    	String content = "{\"username\":\"user1\",\"password\":\"1\",\"birthday\":" + date.getTime() + "}";
+    	log.info("content:{}", content);
+    	// @formatter:off
+    	String result = mockMvc.perform(
+    				post("/user")
+    				.content(content)
+    				.contentType(MediaType.APPLICATION_JSON_UTF8)
+    			)
+    			.andExpect(status().isOk())
+    			.andExpect(jsonPath("$.id").value("1"))
+    			.andReturn().getResponse().getContentAsString()
+    			;
+    	// @formatter:on
+    	log.info("result:{}", result);
+    }
+    ```
+
+    
+
+
+#### 3-2.4. jsonPath 语法 
+
+详见：  https://github.com/json-path/JsonPath
+
+![1552234135999](README_images/1552234135999.png)
+
+
+
+
+
+
+
 # 2 准备工作
 
 ## 2-1 开发环境搭建
