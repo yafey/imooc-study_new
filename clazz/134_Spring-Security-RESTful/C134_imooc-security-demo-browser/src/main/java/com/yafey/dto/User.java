@@ -1,5 +1,6 @@
 package com.yafey.dto;
 
+import java.util.Date;
 import com.fasterxml.jackson.annotation.JsonView;
 import lombok.Data;
 import lombok.experimental.Accessors;
@@ -14,6 +15,7 @@ public class User {
 	private Integer id;
 	private String username;
 	private String password;
+	private Date birthday;
 
 	@JsonView(UserSimpleView.class)
 	public String getUsername() {
@@ -29,5 +31,9 @@ public class User {
 	public Integer getId() {
 		return id;
 	}
-
+	
+    @JsonView(UserSimpleView.class)
+    public Date getBirthday() {
+        return birthday;
+    }
 }

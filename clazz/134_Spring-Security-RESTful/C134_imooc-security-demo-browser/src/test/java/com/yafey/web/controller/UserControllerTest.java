@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import java.util.Date;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -117,7 +118,8 @@ public class UserControllerTest {
 
 	@Test
 	public void whenCreateSuccess() throws Exception {
-		String content = "{\"username\":\"user1\",\"password\":\"1\"}";
+		Date date = new Date();
+		String content = "{\"username\":\"user1\",\"password\":\"1\",\"birthday\":" + date.getTime() + "}";
 		log.info("content:{}", content);
 		// @formatter:off
 		String result = mockMvc.perform(

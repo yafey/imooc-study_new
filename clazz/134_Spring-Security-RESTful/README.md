@@ -447,6 +447,8 @@ public List<User> queryList() {
 
 #### 3-3. JsonView 控制 json 输出内容
 
+示例: 见 提交 [97bc730](/commit/97bc73027a5bd0cfa21d3a5684983a57e6ec6490)
+
 JsonView 使用步骤
 > 使用场景： 在 queryList 时 返回部分字段（示例中只返回 username）； 在 getInfo （单个用户）时 返回所有的字段（示例中比 queryList 多返回了 password 字段）。
 
@@ -460,4 +462,67 @@ result:[{"id":null,"username":null},{"id":null,"username":null},{"id":null,"user
 
 // TC: whenGetUserDetailSuccess() 运行效果，可以看到 password 字段。
 result:{"username":"tom","password":null}
+```
+
+
+
+
+
+#### 3-4. 日期类型参数的处理 ：使用 时间戳 [ `new Date().getTime();` ]
+
+不管是 Java 还是 JavaScript ， 都有能力将 时间戳 转化成相应的时间。
+
+```java
+// 请求中 传递 date.getTime();
+@Test
+public void whenCreateSuccess() throws Exception {
+    Date date = new Date();
+    String content = "{\"username\":\"user1\",\"password\":\"1\",\"birthday\":" + date.getTime() + "}";
+    log.info("content:{}", content);
+    …… 方法体中 其他代码 ……
+}
+
+// 请求体 输出
+content:{"username":"user1","password":"1","birthday":1552412275666}
+
+// 后台接收到的 对象， 已自动将 时间戳 转换成 日期格式。
+com.yafey.web.controller.UserController  : com.yafey.dto.User@5c9e8a67[
+  id=1
+  username=user1
+  password=1
+  birthday=Wed Mar 13 01:37:55 CST 2019
+]
+
+//响应体， 自动将 日期格式 转换成 时间戳。
+c.y.web.controller.UserControllerTest    : result:{"id":1,"username":"user1","password":"1","birthday":1552412275666}
+```
+
+
+
+##### Q: SpringBoot 1.5.6， 默认将 Date 类型 JSON 转换时 默认转成 时间戳 格式？
+
+A：待探索。。。
+> com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS(true)
+> 
+>[SpringMVC HttpMessageConverter 匹配规则](https://www.cnblogs.com/page12/p/8168107.html)
+>
+> [[Spring Boot 2]@ResponseBody返回时间类型不再自动序列化为timestamp](https://segmentfault.com/a/1190000015487589)
+
+```
+通过调试，发现原因在于spring boot 2.0.2中的org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration类中多了如下代码：
+
+static {
+    Map<Object, Boolean> featureDefaults = new HashMap<>();
+    featureDefaults.put(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+    FEATURE_DEFAULTS = Collections.unmodifiableMap(featureDefaults);
+}
+即，在不加配置的情况下，spring boot 2.0.2版本中，返回值中的java.util.Date类型不再默认序列化为timestamp
+
+如果需要仍然按照之前的方式序列化，需要在application.yml中增加如下配置：
+
+spring:
+  jackson:
+    serialization: 
+      WRITE_DATES_AS_TIMESTAMPS: true
+
 ```
