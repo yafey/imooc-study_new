@@ -9,6 +9,8 @@ import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -84,11 +86,20 @@ public class UserController {
 		return user;
 	}
 
-	@PutMapping("/user/{id:\\d+}")
-	public User updateUser(@RequestBody User user) {
-		log.info(ReflectionToStringBuilder.toString(user, ToStringStyle.MULTI_LINE_STYLE));
-		return user;
-	}
+    @PutMapping("/user/{id:\\d+}")
+    public User updateUser(@Valid @RequestBody User user, BindingResult errors) {
+    	if(errors.hasErrors()) {
+    		String errorList = errors.getAllErrors().stream().map(error -> {
+    			FieldError fieldError =  (FieldError) error;
+    			String msg = String.format("[%s] %s", fieldError.getField(),fieldError.getDefaultMessage());
+    			return msg;
+    		}).collect(Collectors.joining("; "));
+    		log.error("bindingErrors:{}",errorList);
+    	}
+    	user.setId(1);
+        log.info(ReflectionToStringBuilder.toString(user, ToStringStyle.MULTI_LINE_STYLE));
+        return user;
+    }
 
 	@DeleteMapping("/user/{id:\\d+}")
 	public void deleteUser(@PathVariable(value = "id", required = true) Integer idxxx) {

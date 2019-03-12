@@ -535,6 +535,8 @@ spring:
 
 #### 3-4 + 3-5. `@Valid` 注解 及 常用的 验证注解
 
+示例: 见 提交 [56d8161](//commit/56d8161f6e8a2d5d20fb5eff72df56ec1acc14d9)
+
 来自 `Hibernate Validator` --> http://hibernate.org/validator/
 
 1. 在 bean 的需要校验的字段上 添加要校验的方式 ， 如 `@NotBlank`  `@Past` 等。
@@ -568,3 +570,69 @@ public User createUser(@Valid @RequestBody User user) {
 
 ![1552405409079](README_images/1552405409079.png)
 
+
+
+
+
+
+
+#### 3-4 + 3-5. 自定义消息 和 BindingResult 验证请求参数的合法性并处理校验结果
+
+自定义参数只要 设置 校验注解的 `message` 属性 即可。
+
+```java
+@NotBlank(message="密码不能为空")
+private String password;
+@Past(message="生日必须是过去的时间")
+private Date birthday;
+```
+
+
+
+`@Valid` 注解 不会执行方法体中的代码， <span style="color:green;">**有时候即使 请求参数不对，但是需要在方法体中做一些操作**</span>，如：记日志啥的， 就需要结合 **BindingResult**  。
+
+1. 在 Controller 上 添加 `BindingResult` 参数，然后获得错误信息。
+2. `UserControllerTest.whenUpdateFailed()` 测试用例中， password=null , birthday=明年的今天。
+3. 结果中状态码是 200 ， 日志中也输出了 错误信息。
+
+```java
+@PutMapping("/user/{id:\\d+}")
+public User updateUser(@Valid @RequestBody User user, BindingResult errors) {
+	if(errors.hasErrors()) {
+		String errorList = errors.getAllErrors().stream().map(error -> {
+			FieldError fieldError =  (FieldError) error;
+			String msg = String.format("[%s] %s", fieldError.getField(),fieldError.getDefaultMessage());
+			return msg;
+		}).collect(Collectors.joining("; "));
+		log.error("bindingErrors:{}",errorList);
+	}
+	user.setId(1);
+    log.info(ReflectionToStringBuilder.toString(user, ToStringStyle.MULTI_LINE_STYLE));
+    return user;
+}
+
+@Test
+// Spring 会将错误 绑定到 BindingResult 对象上， 不像 @Valid 注解那样 方法体都不执行。
+// 代码中可以拿到 如下的 错误信息。
+// 默认的错误信息 ：  bindingErrors:[birthday] must be in the past; [password] may not be empty
+// 自定义的错误信息： bindingErrors:[birthday] 生日必须是过去的时间; [password] 密码不能为空
+public void whenUpdateFailed() throws Exception {
+	// 明年的今天
+	Date date = new Date(LocalDateTime.now().plusYears(1).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+	
+	String content = "{\"id\":\"1\",\"username\":\"user1\",\"password\":null,\"birthday\":" + date.getTime() + "}";
+	log.info("whenUpdateSuccess content:{}", content);
+	// @formatter:off
+	String result = mockMvc.perform(
+				put("/user/1")
+				.content(content)
+				.contentType(MediaType.APPLICATION_JSON_UTF8)
+			)
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.id").value("1"))
+			.andReturn().getResponse().getContentAsString()
+			;
+	// @formatter:on
+	log.info("whenUpdateSuccess result:{}", result);
+}
+```

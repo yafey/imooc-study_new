@@ -16,9 +16,9 @@ public class User {
 
 	private Integer id;
 	private String username;
-	@NotBlank
+	@NotBlank(message="密码不能为空")
 	private String password;
-	@Past
+	@Past(message="生日必须是过去的时间")
 	private Date birthday;
 
 	@JsonView(UserSimpleView.class)

@@ -174,6 +174,31 @@ public class UserControllerTest {
 		// @formatter:on
 		log.info("whenUpdateSuccess result:{}", result);
 	}
+	
+	@Test
+	// Spring 会将错误 绑定到 BindingResult 对象上， 不像 @Valid 注解那样 方法体都不执行。
+	// 代码中可以拿到 如下的 错误信息。
+	// 默认的错误信息 ：  bindingErrors:[birthday] must be in the past; [password] may not be empty
+	// 自定义的错误信息： bindingErrors:[birthday] 生日必须是过去的时间; [password] 密码不能为空
+	public void whenUpdateFailed() throws Exception {
+		// 明年的今天
+		Date date = new Date(LocalDateTime.now().plusYears(1).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+		
+		String content = "{\"id\":\"1\",\"username\":\"user1\",\"password\":null,\"birthday\":" + date.getTime() + "}";
+		log.info("whenUpdateSuccess content:{}", content);
+		// @formatter:off
+		String result = mockMvc.perform(
+					put("/user/1")
+					.content(content)
+					.contentType(MediaType.APPLICATION_JSON_UTF8)
+				)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value("1"))
+				.andReturn().getResponse().getContentAsString()
+				;
+		// @formatter:on
+		log.info("whenUpdateSuccess result:{}", result);
+	}
 
 	
 	@Test
