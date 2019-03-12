@@ -6,11 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -122,8 +117,7 @@ public class UserControllerTest {
 
 	@Test
 	public void whenCreateSuccess() throws Exception {
-		Date date = new Date();
-		String content = "{\"username\":\"user1\",\"password\":\"1\",\"birthday\":" + date.getTime() + "}";
+		String content = "{\"username\":\"user1\",\"password\":\"1\"}";
 		log.info("content:{}", content);
 		// @formatter:off
 		String result = mockMvc.perform(
