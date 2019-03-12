@@ -470,6 +470,8 @@ result:{"username":"tom","password":null}
 
 #### 3-4. 日期类型参数的处理 ：使用 时间戳 [ `new Date().getTime();` ]
 
+示例: 见 提交 [0d005a3](/commit/0d005a33f749be141e16d75014ae942ecd989930)
+
 不管是 Java 还是 JavaScript ， 都有能力将 时间戳 转化成相应的时间。
 
 ```java
@@ -526,3 +528,43 @@ spring:
       WRITE_DATES_AS_TIMESTAMPS: true
 
 ```
+
+
+
+
+
+#### 3-4 + 3-5. `@Valid` 注解 及 常用的 验证注解
+
+来自 `Hibernate Validator` --> http://hibernate.org/validator/
+
+1. 在 bean 的需要校验的字段上 添加要校验的方式 ， 如 `@NotBlank`  `@Past` 等。
+2. 在 controller 的方法参数上添加 @Valid 注解。
+
+访问时，如果 password 为 null ， 就会返回 400 ， 请求格式不正确， <span style="color:red;">不会执行方法体中的代码</span>。
+
+建议结合 后面的 `BindingResult` 的方式。
+
+```java
+@Data
+@Accessors(chain = true)
+public class User {
+	@NotBlank
+	private String password;
+	@Past
+	private Date birthday;
+}
+
+@PostMapping("/user")
+public User createUser(@Valid @RequestBody User user) {
+	user.setId(1);
+	log.info(ReflectionToStringBuilder.toString(user, ToStringStyle.MULTI_LINE_STYLE));
+	return user;
+}
+```
+
+
+
+##### 常见 校验注解
+
+![1552405409079](README_images/1552405409079.png)
+

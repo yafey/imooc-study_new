@@ -1,6 +1,8 @@
 package com.yafey.dto;
 
 import java.util.Date;
+import javax.validation.constraints.Past;
+import org.hibernate.validator.constraints.NotBlank;
 import com.fasterxml.jackson.annotation.JsonView;
 import lombok.Data;
 import lombok.experimental.Accessors;
@@ -14,7 +16,9 @@ public class User {
 
 	private Integer id;
 	private String username;
+	@NotBlank
 	private String password;
+	@Past
 	private Date birthday;
 
 	@JsonView(UserSimpleView.class)

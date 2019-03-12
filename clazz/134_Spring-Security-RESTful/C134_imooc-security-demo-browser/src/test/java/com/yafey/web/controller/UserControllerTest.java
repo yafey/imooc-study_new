@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import org.junit.Before;
 import org.junit.Test;
@@ -133,6 +135,26 @@ public class UserControllerTest {
 				;
 		// @formatter:on
 		log.info("result:{}", result);
+	}
+	
+	
+	@Test
+	// 因为 User 的 password 上有 @NotNull 注解， Controller 上也加了 @Valid 注解，
+	// 如果 password 为 null ， 就会得到 400 的错误。
+	public void whenCreateFailed() throws Exception {
+		// 明年的今天
+		Date date = new Date(LocalDateTime.now().plusYears(1).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+		String content = "{\"username\":\"user1\",\"password\":null,\"birthday\":" + date.getTime() + "}";
+		log.info("content:{}", content);
+		// @formatter:off
+		mockMvc.perform(
+					post("/user")
+					.content(content)
+					.contentType(MediaType.APPLICATION_JSON_UTF8)
+				)
+				.andExpect(status().is4xxClientError())
+				;
+		// @formatter:on
 	}
 
 	@Test
