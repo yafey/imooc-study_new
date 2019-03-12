@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
+import com.fasterxml.jackson.annotation.JsonView;
 import com.yafey.dto.User;
 import com.yafey.dto.UserQueryCondition;
 
@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UserController {
 
 	@GetMapping("/users")
+	@JsonView(User.UserSimpleView.class)
 	public List<User> queryList() {
 
 		//@formatter:off
@@ -68,6 +69,7 @@ public class UserController {
 		return condition;
 	}
 
+	@JsonView(User.UserDetailView.class)
 	// URL 中使用 正则表达式，限制 用户 id 只能是 数字，
 	@GetMapping("/user/{id:\\d+}")
 	public User getUserDetail(@PathVariable(value = "id", required = true) Integer idxxx) {

@@ -445,3 +445,19 @@ public List<User> queryList() {
 
 
 
+#### 3-3. JsonView 控制 json 输出内容
+
+JsonView 使用步骤
+> 使用场景： 在 queryList 时 返回部分字段（示例中只返回 username）； 在 getInfo （单个用户）时 返回所有的字段（示例中比 queryList 多返回了 password 字段）。
+
+* 使用接口来声明多个视图
+* 在值对象的 get 方法上指定视图
+* 在 Controller 方法上指定视图
+
+```java
+// TC: whenQueryUserListSuccess() 运行效果， 看不到 password 字段。
+result:[{"id":null,"username":null},{"id":null,"username":null},{"id":null,"username":null}]
+
+// TC: whenGetUserDetailSuccess() 运行效果，可以看到 password 字段。
+result:{"username":"tom","password":null}
+```
