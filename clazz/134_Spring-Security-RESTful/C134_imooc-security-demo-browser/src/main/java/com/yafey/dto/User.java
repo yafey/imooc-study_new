@@ -4,6 +4,7 @@ import java.util.Date;
 import javax.validation.constraints.Past;
 import org.hibernate.validator.constraints.NotBlank;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.yafey.validator.MyConstraint;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
@@ -15,6 +16,7 @@ public class User {
 	public interface UserDetailView extends UserSimpleView {};
 
 	private Integer id;
+	@MyConstraint(message="自定义校验器测试，因为在校验器的 isValid 方法直接返回 false，肯定会-->看到本消息就是校验失败了。。。")
 	private String username;
 	@NotBlank(message="密码不能为空")
 	private String password;

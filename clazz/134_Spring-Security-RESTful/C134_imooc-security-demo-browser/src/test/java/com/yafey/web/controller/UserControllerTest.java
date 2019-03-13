@@ -185,7 +185,7 @@ public class UserControllerTest {
 		Date date = new Date(LocalDateTime.now().plusYears(1).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
 		
 		String content = "{\"id\":\"1\",\"username\":\"user1\",\"password\":null,\"birthday\":" + date.getTime() + "}";
-		log.info("whenUpdateSuccess content:{}", content);
+		log.info("whenUpdateFailed content:{}", content);
 		// @formatter:off
 		String result = mockMvc.perform(
 					put("/user/1")

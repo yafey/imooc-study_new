@@ -576,7 +576,9 @@ public User createUser(@Valid @RequestBody User user) {
 
 
 
-#### 3-4 + 3-5. 自定义消息 和 BindingResult 验证请求参数的合法性并处理校验结果
+#### 3-4 + 3-5. 自定义消息 和 BindingResult
+
+> BindingResult 验证请求参数的合法性并处理校验结果 。
 
 自定义参数只要 设置 校验注解的 `message` 属性 即可。
 
@@ -636,3 +638,116 @@ public void whenUpdateFailed() throws Exception {
 	log.info("whenUpdateSuccess result:{}", result);
 }
 ```
+
+
+
+
+#### 3-5. 自定义校验注解
+
+
+
+1. 声明自定义注解 
+
+   ```java
+   public @interface MyConstraint {
+   	// 如果要想用作 像 Hibernate Validator 中那样的注解（如 @NotBlank / @Past）, 必须至少包含 3 个属性。
+   	…… 一些属性 ……
+   }
+   ```
+
+2. 自定义校验器 实现 `ConstraintValidator` 接口。
+
+   ```java
+   public class MyConstraintValidator implements ConstraintValidator<MyConstraint, Object> {
+   
+   	// 不用在 自定义的校验器上用 @Component 或 @Service 标注，
+   	// Spring 会自动将 自定义的 校验器 作为 bean 来管理， 自动注入 Spring 容器中的 其他 bean。
+   	@Autowired
+   	private HelloService helloService;
+   	
+   	@Override
+   	public void initialize(MyConstraint constraintAnnotation) {
+   		// 校验器初始化时要做的动作。
+   		System.out.println("MyConstraintValidator init...");
+   	}
+   
+   	/**
+   	 * Object value ： 要校验的数据。
+   	 * context ： 校验的上下文，包含了 自定义注解 @MyConstraint 里面的 一些值。
+   	 */
+   	@Override
+   	public boolean isValid(Object value, ConstraintValidatorContext context) {
+           System.out.println(String.format("传递给自定义校验器 MyConstraintValidator 的值 isValid value=[%s]", value));
+           helloService.greeting("校验器的校验逻辑中可以调用 Spring 容器中的任何东西，比如这里是调用 Service 的方法。");
+           // 返回 true 表示校验通过， false 表示校验失败。
+   		return false;
+   	}
+   }
+   ```
+
+3. 为演示 校验器里自动注入 Spring 容器中的 bean 创建的 Service 。 
+
+      ```java
+      // 注册为 Spring 容器的一个 Service。
+      @Service
+      public class HelloServiceImpl implements HelloService {
+      	@Override
+      	public String greeting(String name) {
+      		System.out.println("HelloServiceImpl greeting...");
+      		return "Hello " + name;
+      	}
+      }
+      ```
+
+4. 在 bean 中要校验的字段上使用 自定义注解
+
+         ```java
+         @Data
+         @Accessors(chain = true)
+         public class User {
+         	@MyConstraint(message="自定义校验器测试，因为在校验器的 isValid 方法直接返回 false，肯定会-->看到本消息就是校验失败了。。。")
+         	private String username;
+         	…… 其他字段 ……
+         }
+         ```
+
+5. TestCase , 沿用之前的 `whenUpdateFailed（）`方法 ，输出的日志如下。
+
+         ```log
+         c.y.web.controller.UserControllerTest: whenUpdateSuccess content:{"id":"1","username":"user1","password":null,"birthday":1584123733003}
+         MyConstraintValidator init...
+         传递给自定义校验器 MyConstraintValidator 的值 isValid value=[user1]
+         HelloServiceImpl greeting...
+         2019-03-14 02:22:13.758 ERROR 23364 --- [           main] com.yafey.web.controller.UserController  : bindingErrors:[username] 自定义校验器测试，因为在校验器的 isValid 方法直接返回 false，肯定会-->看到本消息就是校验失败了。。。; [password] 密码不能为空; [birthday] 生日必须是过去的时间
+         
+         ```
+
+
+    ​     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
