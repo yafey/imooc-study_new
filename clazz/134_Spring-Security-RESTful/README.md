@@ -687,51 +687,129 @@ public void whenUpdateFailed() throws Exception {
 
 3. 为演示 校验器里自动注入 Spring 容器中的 bean 创建的 Service 。 
 
-      ```java
-      // 注册为 Spring 容器的一个 Service。
-      @Service
-      public class HelloServiceImpl implements HelloService {
-      	@Override
-      	public String greeting(String name) {
-      		System.out.println("HelloServiceImpl greeting...");
-      		return "Hello " + name;
-      	}
-      }
-      ```
+    ```java
+    // 注册为 Spring 容器的一个 Service。
+    @Service
+    public class HelloServiceImpl implements HelloService {
+        @Override
+        public String greeting(String name) {
+        	System.out.println("HelloServiceImpl greeting...");
+        	return "Hello " + name;
+        }
+    }
+    ```
 
 4. 在 bean 中要校验的字段上使用 自定义注解
 
-         ```java
-         @Data
-         @Accessors(chain = true)
-         public class User {
-         	@MyConstraint(message="自定义校验器测试，因为在校验器的 isValid 方法直接返回 false，肯定会-->看到本消息就是校验失败了。。。")
-         	private String username;
-         	…… 其他字段 ……
-         }
-         ```
+    ```java
+    @Data
+    @Accessors(chain = true)
+    public class User {
+        @MyConstraint(message="自定义校验器测试，因为在校验器的 isValid 方法直接返回 false，肯定会-->看到本消息就是校验失败了。。。")
+        private String username;
+        …… 其他字段 ……
+    }
+    ```
 
 5. TestCase , 沿用之前的 `whenUpdateFailed（）`方法 ，输出的日志如下。
 
-         ```log
-         c.y.web.controller.UserControllerTest: whenUpdateSuccess content:{"id":"1","username":"user1","password":null,"birthday":1584123733003}
-         MyConstraintValidator init...
-         传递给自定义校验器 MyConstraintValidator 的值 isValid value=[user1]
-         HelloServiceImpl greeting...
-         2019-03-14 02:22:13.758 ERROR 23364 --- [           main] com.yafey.web.controller.UserController  : bindingErrors:[username] 自定义校验器测试，因为在校验器的 isValid 方法直接返回 false，肯定会-->看到本消息就是校验失败了。。。; [password] 密码不能为空; [birthday] 生日必须是过去的时间
-         
-         ```
-
-
-    ​     
+    ```log
+    c.y.web.controller.UserControllerTest: whenUpdateSuccess content:{"id":"1","username":"user1","password":null,"birthday":1584123733003}
+    MyConstraintValidator init...
+    传递给自定义校验器 MyConstraintValidator 的值 isValid value=[user1]
+    HelloServiceImpl greeting...
+    2019-03-14 02:22:13.758 ERROR 23364 --- [           main] com.yafey.web.controller.UserController  : bindingErrors:[username] 自定义校验器测试，因为在校验器的 isValid 方法直接返回 false，肯定会-->看到本消息就是校验失败了。。。; [password] 密码不能为空; [birthday] 生日必须是过去的时间
+    ```
 
 
 
 
 
+### 3-6 RESTful API 异常处理
+
+#### Spring Boot 中默认的错误处理机制
+
+Spring Boot 错误处理类 ： **`BasicErrorController`** 类中 根据 请求头中是否包含 `text/html` 来决定是返回 HTML 页面 还是 JSON 字符串。
+
+```java
+package org.springframework.boot.autoconfigure.web;
+
+@Controller
+@RequestMapping("${server.error.path:${error.path:/error}}")
+public class BasicErrorController extends AbstractErrorController {
+
+    // 如果请求头的 accept 属性中包含 “text/html”， 返回 html 页面。
+	@RequestMapping(produces = "text/html")
+	public ModelAndView errorHtml(HttpServletRequest request,HttpServletResponse response) {
+		…… 方法体 ……
+        ModelAndView modelAndView = resolveErrorView(request, response, status, model);
+		return (modelAndView == null ? new ModelAndView("error", model) : modelAndView);
+	}
+	
+    // 其他情况都返回 json 格式（ @ResponseBody 注解 ）。
+	@RequestMapping
+	@ResponseBody
+	public ResponseEntity<Map<String, Object>> error(HttpServletRequest request) {
+		Map<String, Object> body = getErrorAttributes(request,isIncludeStackTrace(request, MediaType.ALL));
+		HttpStatus status = getStatus(request);
+		return new ResponseEntity<Map<String, Object>>(body, status);
+	}
+```
+
+
+常见的错误 ： 404 , 400 ( 如 `whenCreateFailed` TC , validator failed) ， 500 ( Sever `RuntimeException` ) 。
+
+以 400 错误为例， 输出内容如下：
+
+```json
+/*  请求信息：
+method ： POST
+content-type=application/json;charset=UTF-8
+http://localhost:8080/user
+*/
+{
+    "timestamp": 1552570354116,
+    "status": 400,
+    "error": "Bad Request",
+    "exception": "org.springframework.http.converter.HttpMessageNotReadableException",
+    "message": "Required request body is missing: public com.yafey.dto.User com.yafey.web.controller.UserController.createUser(com.yafey.dto.User)",
+    "path": "/user"
+}	
+```
 
 
 
+Q: `${server.error.path:${error.path:/error}}`  怎么理解？默认值是 `/error` ?
+A: SPel ? 待研究。
+
+
+#### 自定义异常处理
+- 针对 浏览器 请求
+
+  创建以 错误码 命名的 html 文件。 如 统一的 404 页面 ： `src/main/resources/error/404.html` 。
+
+- **针对 客户端 的请求 （JSON）**
+
+  ```java
+  @RestControllerAdvice  // 标识 这是一个 自定义处理 Controller 异常的类。
+  public class ControllerExceptionHandler {
+  
+      @ExceptionHandler(UserException4Demo.class)	// 标识 需要处理的 异常类型
+      @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+      public Map<String, Object> handleUserNotExistException(UserException4Demo e) {
+          Map<String, Object> result = new HashMap<>();
+          result.put("id", e.getId());
+          result.put("message", e.getMessage());
+          return result;
+      }
+  }
+  /* 输出示例：
+  {"id":1,"message":"User not exist."}
+  */
+  
+  ```
+
+  
 
 
 
