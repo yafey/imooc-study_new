@@ -447,7 +447,7 @@ public List<User> queryList() {
 
 #### 3-3. JsonView 控制 json 输出内容
 
-示例: 见 提交 [97bc730](/commit/97bc73027a5bd0cfa21d3a5684983a57e6ec6490)
+示例: 见 提交 [97bc730](../../commit/97bc73027a5bd0cfa21d3a5684983a57e6ec6490)
 
 JsonView 使用步骤
 > 使用场景： 在 queryList 时 返回部分字段（示例中只返回 username）； 在 getInfo （单个用户）时 返回所有的字段（示例中比 queryList 多返回了 password 字段）。
