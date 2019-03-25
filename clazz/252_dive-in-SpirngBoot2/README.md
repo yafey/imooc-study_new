@@ -10,14 +10,15 @@ typora-copy-images-to: ./README_images/
 
 ### 微服务： 一般指的是 「微服务架构」[^quick-understand-microservice] [^microservice-tech-stack]
 
-> 2014 年可以认为是微服务 1.0 的元年，当年有几个标志性事件，
-> 一是 <span style="color:green">**Martin Fowler 在其博客上发表了”Microservices”一文**</span>，正式提出微服务架构风格；
-> 二是 Netflix 微服务架构经过多年大规模生产验证，最终抽象落地形成一整套开源的微服务基础组件，统称 NetflixOSS，Netflix 的成功经验开始被业界认可并推崇；
-> 三是 Pivotal 将 NetflixOSS 开源微服务组件集成到其 Spring 体系，推出 Spring Cloud 微服务开发技术栈。
+> 2014 年可以认为是微服务 1.0 的元年，当年有几个标志性事件，<br/>
+> 一是 <span style="color:green">**Martin Fowler 在其博客上发表了”Microservices”一文**</span>，正式提出微服务架构风格；<br/>
+> 二是 Netflix 微服务架构经过多年大规模生产验证，最终抽象落地形成一整套开源的微服务基础组件，统称 NetflixOSS，Netflix 的成功经验开始被业界认可并推崇；<br/>
+> 三是 Pivotal 将 NetflixOSS 开源微服务组件集成到其 Spring 体系，推出 Spring Cloud 微服务开发技术栈。<br/>
 
 
 
-[^quick-understand-microservice]: http://dockone.io/article/3687 一篇文章快速理解微服务架构
+[^quick-understand-microservice]: http://dockone.io/article/3687 一篇文章快速理解微服务架构 @ MARCH 06, 2018 <br/>
+
 [^microservice-tech-stack]: https://infoq.cn/article/micro-service-technology-stack  微服务架构技术栈选型手册@2018.02.12
 
 
@@ -302,7 +303,7 @@ public class DiveInSpirngBoot2Application {
 
 
 
-#### 1.5.1.0. 传统Web应用示例 TL;DR
+#### 1.5.1.0. (1-7)传统Web应用示例 TL;DR
 
 1. **添加传统 Web 依赖** （Spring Boot Starter 方式引入）
 
@@ -388,7 +389,7 @@ public class DiveInSpirngBoot2Application {
 >
 > **传统的 SpringMVC 应用也是可以放到 Spring Boot 里面的。**
 
-示例: 见 提交 [97bc730](/../../commit/97bc73027a5bd0cfa21d3a5684983a57e6ec6490)
+示例: 见 提交 [4b2f9ec](/../../commit/4b2f9ec)
 
 1. 模仿 `org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration` 类 创建 `web.servlet.MyServlet` class。
 
@@ -413,3 +414,26 @@ public class DiveInSpirngBoot2Application {
 
 ![1553522316612](README_images/1553522316612.png)
 
+
+
+### 1.5.2. (1-8)异步非阻塞 Servlet
+
+异步非阻塞分两个方面，异步Servlet ( 3.0中提出 )，非阻塞Servlet (3.1中提出)。
+
+1. **异步Servlet**
+   - `javax.servlet.ServletRequest#startAsync()`
+   - `javax.servlet.AsyncContext`
+2. **非阻塞Servlet**
+   - `javax.servlet.ServletInputStream#setReadListener`
+     - `javax.servlet.ReadListener`
+   - `javax.servlet.ServletOutputStream#setWriteListener`
+     - `javax.servlet.WriteListener`
+
+
+
+> <span style="color:red;">注意点：异步操作 比 同步操作 要复杂很多。</span>  示例: 见 提交 [待补充](/../../commit/4b2f9ec)
+>
+> 1. <span style="color:green">**需要配置 `@WebServlet` 的 属性 `asyncSupported = true`**</span> , **不然会报错**。完整的注解为：  `@WebServlet(urlPatterns="/my/servlet",asyncSupported=true)` 
+> 2. 在业务代码完成后，<span style="color:green">**需要显式地 触发完成 `asyncContext.complete();`**  </span> ， 不然，浏览器会一直等待服务器端响应，直到达到 超时时间。
+
+![1553526964077](README_images/1553526964077.png)
