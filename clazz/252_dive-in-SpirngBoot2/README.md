@@ -38,7 +38,7 @@ typora-copy-images-to: ./README_images/
    >
    > 有一种观点：<span style="color:green">「 **Spring 已经成为 Java 的事实标准。**」</span> ，长期处于绝对的领先地位。
 
-2.  优秀的家族基因
+2. 优秀的家族基因
 
    > Spring Boot 在 Spring 体系中， 起到了承上启下的角色，为 底层的 Spring Framework 快速搭建应用 ； 为 高层的 Spring Cloud 提供了 基础设施。 Spring 官方给它起了 「BUILD ANYTHING」这样的 slogan 来体现它的家族地位。
 
@@ -277,4 +277,139 @@ public class DiveInSpirngBoot2Application {
 ![1553362177484](README_images/1553362177484.png)
 
 
+
+## 1.5. (1-6)Web 应用介绍
+
+### 1.5.1. 传统 Servlet 应用
+
+1. **`Servlet 组件`**：Servlet、Filter、Listener。
+
+   常见的 Listener 有 ：ServletContextListener、RequestListener。
+
+2. **`Servlet 注册`**：Servlet 注解、Spring Bean、RegistrationBean
+
+   - `Servlet 注解` 其实是 **Servlet 3.0 本身提供的特性**。
+   - `Spring Bean` 的注册方式，**在 Spring Boot 里面，我们允许把 Servlet 部署成一个Spring 的 Bean 加以 加载 和 映射**。
+   - `RegistrationBean` 这种方式，**是 Spring Boot 提供新的 API**，有几种不同的变种。
+
+3. **异步非阻塞**：异步 Servlet、非阻塞 Servlet 。
+
+   主要是依靠 Servlet3.0 以上 的 API 来进行实现的。
+
+   - 异步 Servlet 主要是 Servlet3.0 提供的一种实现。
+   - 非阻塞 Servlet 是 Servlet3.1 的实现。
+   - 因此，在 Web Flux 里面，它有一个地方提到了：**Web Flux 可以运行在 Servlet3.1 以上的 API，也说是说 Serlvet3.1 里面其实有包含异步和非阻塞两个特性**。
+
+
+
+#### 1.5.1.0. 传统Web应用示例 TL;DR
+
+1. **添加传统 Web 依赖** （Spring Boot Starter 方式引入）
+
+   ```xml
+   <dependency>
+     <groupId>org.springframework.boot</groupId>
+     <artifactId>spring-boot-starter-web</artifactId>
+   </dependency>
+   ```
+
+2. **Servlet 组件**
+
+   - **Servlet**
+     1. 实现
+        - `@WebServlet`
+        - `extends HttpServlet`
+        - 重写方法（`@Override`）
+     2. URL 映射
+        - `@WebServlet(urlPatterns="/my/servlet")`
+     3. 注册
+        - `@ServletComponentScan(basePackages="com.imooc.diveinspringboot.web.servlet")`
+   - **Filter**
+   - **Listener**
+
+3. **Servlet 注册**
+
+   1. 方式一：**Servlet 注解**
+      - `@ServletComponentScan +`
+        1. `@WebServlet`
+        2. `@WebFilter`
+        3. `@WebListener`
+
+   2. 方式二：**Spring Bean**
+      - `@Bean +`
+        1. Servlet
+        2. Filter
+        3. Listener
+   3. 方式三：**RegistrationBean**
+      - `ServletRegistrationBean`
+      - `FilterRegistrationBean`
+      - `ServletListenerRegistrationBean`
+
+4. **异步非阻塞**
+
+   - **异步 Servlet**
+     - `javax.servlet.ServletRequest#startAsync()`
+     - `javax.servlet.AsyncContext`
+   - **非阻塞 Servlet**
+     1. `javax.servlet.ServletInputStream#setReadListener`
+        - `javax.servlet.ReadListener`
+     2. `javax.servlet.ServletOutputStream#setWriteListener`
+        - `javax.servlet.WriteListener`
+
+
+
+#### 1.5.1.1. 传统Web应用示例—详细
+
+##### 添加传统 Web 依赖
+
+**Spring Boot 的 自动装配** 其实是采用 「 `spring-boot-starter` 方式」。
+
+- `spring-boot-starter` 分成 很多功能模块，如 `spring-boot-starter-test`、`spring-boot-starter-web` 模块。
+- 这些模块的 `groupId` 都是 `org.springframework.boot`，而 `artifactId` 都是以 `spring-boot-starter-xxx` 开头的。
+
+
+
+添加 传统 Web 依赖后：( 添加该依赖后， 我们可以看到一些 间接依赖，这里的有 tomcat、JSON、Servlet API 等 间接依赖。 )
+
+```
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+```
+
+启动 Spring Boot 应用，我们可以看到启动的容器是 Tomcat，端口是 8080，和上面的包依赖 tomcat 遥相呼应，当输入`localhost:8080`后，<span style="color:red">**会出现一个白页 ( Whitelabel Error Page )  ,因为当前 没有增加 映射的 任何处理**</span>，也就是说 当前页面没有映射到任何一个处理的实现类，这个白页是错误信息的警告，因此会报 404 的错误。
+
+
+
+##### Servlet 注解方式 实现 传统 Servlet3.0 。
+
+> `@ServletComponentScan` + `@WebServlet`( Servlet3.0 )
+>
+> **传统的 SpringMVC 应用也是可以放到 Spring Boot 里面的。**
+
+示例: 见 提交 [97bc730](/../../commit/97bc73027a5bd0cfa21d3a5684983a57e6ec6490)
+
+1. 模仿 `org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration` 类 创建 `web.servlet.MyServlet` class。
+
+   - **Spring Boot2 的 web 有两种实现方式 ： Servlet 和 Reactive** ， 所以 WebMvcAutoConfiguration 类的全路径 也 从 `web.WebMvcAutoConfiguration` 调整为 `web.servlet.WebMvcAutoConfiguration`。
+
+2. 添加 `@WebServlet`，`extends HttpServlet` (Servlet3.0 规范里决定) ，覆盖 `doGet(HttpServletRequest req, HttpServletResponse resp)` 方法。
+
+3. 添加 URL 映射 ： `@WebServlet(urlPatterns="/my/servlet")`
+
+4. 注册 : `@ServletComponentScan(basePackages="com.imooc.diveinspringboot.web.servlet")`。
+
+   有点类似于 `@ComponentScan`。
+
+5. 启动应用后，在浏览器输入 http://localhost:8080/my/servlet 后，能正常获得 “Hello,World” 信息。
+
+6. 这里演示的 Servlet 的注册方式 是 Spring 自定义的 注册方式 (`@ServletComponentScan` +  `@WebServlet`( Servlet3.0) ) ，它结合了 Servlet 规范来操作的。
+
+   - 和 `@WebServlet` 相应的 ， 还有 `@WebFilter` 和 `@WebListener` 。
+7. 另外还有 Spring Beant 和 RegistrationBean 两种方式，Spring Bean 和 RegistrationBean 方式有点类似。后续加以说明。
+
+
+
+![1553522316612](README_images/1553522316612.png)
 
