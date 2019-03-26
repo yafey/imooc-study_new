@@ -648,3 +648,50 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 性能测试：<https://blog.ippon.tech/spring-5-webflux-performance-tests/>，这是一个性能方面的测试，<span style="color:red">结论是: 在 Web Flux 里面 **性能没有提升太多，在某些方面 Web Flux 性能反而会有所下降**。</span>
 
 <span style="color:orange">那为什么要用Reactive呢？提升系统的吞吐量，吞吐量不代表快。</span>
+
+
+
+
+
+## 1.6. 容器整合（Web Server应用）
+
+### 1.6.1. 切换 Web Server 容器
+
+ 　如果你不喜欢用 Tomcat，或者你不得不用 Jetty，这时你就需要做切换，同时你也许不太想用Servlet 容器，想尝试新的 Netty Web Server，也是可以的。
+
+#### a.Servlet 容器 切换：Tomat -> jetty
+
+示例: 见 提交 [待补充](/../../commit/4b2f9ec)
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+```
+
+改成如下：（排除 web starter 中默认的 tomcat ， 并添加 jetty starter）。
+
+> Q: 为什么要明确的把 tomcat 排除？
+> A: <span style="color:red">**tomcat 优先级高于 Jetty，如果仅仅把 Jetty 加上，不把 tomcat 排除，同样还是 Tomcat。**</span>
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+    <exclusions>
+        <!-- Exclude the Tomcat dependency -->
+        <exclusion>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jetty</artifactId>
+</dependency>
+```
+
+
