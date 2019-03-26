@@ -704,6 +704,8 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 
 将如下配置加到 pom.xml 中，注意把 web 配置注释掉，加上webflux starter 依赖。
 
+示例: 见 提交 [9e0c28f](/../../commit/9e0c28f)
+
 ```xml
 <!--
 <dependency>
@@ -728,3 +730,24 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 </dependency>
 ```
 
+
+
+### 1.6.2. 自定义 Servlet Web Server
+
+通常不需要自定义，通过 外部化配置，可以调整 Web 容器的一些配置，但是 外部化配置 并不是 每个点都可以覆盖到，因此有时候需要定制化服务器的行为。
+
+`WebServerFactoryCustomizer` ：Spring Boot2.0 新加的接口，这个接口是我们如何自定义的关键，这是一个总接口，可以看到有很多的实现。
+
+其中 `ServletWebServerFactoryCustomizer` 是 Servlet 的通用实现，它还有一些自定义的接口实现，如 `TomcatServletWebServerFactoryCustomizer`，它的实现是比较复杂的，我们可以通过一些简单的方式来进行操作，如通过配置项来进行操作。
+
+![1553617994448](README_images/1553617994448.png)
+
+
+
+### 1.6.3. 自定义Reactive Web Server
+
+`ReactiveWebServerFactoryCustomizer` 是 接口 `WebServerFactoryCustomizer` ` 的 Reactive 方式的实现类 ，它的实现很简单，就是端口、地址、SSL等的实现。
+
+我们在这里可以扩展它的实现，如可以覆盖它的默认行为，提供一些具有高级特性的行为。一般来说，Spring Boot里的默认实现只是提供一些通用实现，或者说是最简单的实现、最常用的实现，这种实现方式也许满足你大部分需求，也可以进行自定义的调整。
+
+![1553618464737](README_images/1553618464737.png)
