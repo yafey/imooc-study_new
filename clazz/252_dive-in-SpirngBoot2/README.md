@@ -416,7 +416,7 @@ public class DiveInSpirngBoot2Application {
 
 
 
-### 1.5.2. (1-8)异步非阻塞 Servlet
+#### 1.5.1.2. (1-8)异步非阻塞 Servlet
 
 异步非阻塞分两个方面，异步Servlet ( 3.0中提出 )，非阻塞Servlet (3.1中提出)。
 
@@ -442,7 +442,7 @@ public class DiveInSpirngBoot2Application {
 
 
 
-### 1.5.3. (1-9)Spring Web MVC 应用 介绍
+### 1.5.2. (1-9)Spring Web MVC 应用 介绍
 
 > 需要了解 Spring Framework 中 Web MVC ， 这部分在 SpringBoot 中 没有太多变化。
 
@@ -494,7 +494,7 @@ public class DiveInSpirngBoot2Application {
 
 
 
-#### 1.5.3.1. Web MVC 视图：模板引擎、内容协商、异常处理等。
+#### 1.5.2.1. Web MVC 视图：模板引擎、内容协商、异常处理等。
 
 Web MVC视图：**主要是 2 个接口： `ViewResolver`、`View`** 。
 
@@ -555,7 +555,7 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 
 
 
-#### 1.5.3.2. Web MVC REST：资源服务、资源跨域、服务发现等
+#### 1.5.2.2. Web MVC REST：资源服务、资源跨域、服务发现等
 
 >  RESTful 一般以 JSON 或 XML 作为响应体。
 
@@ -600,7 +600,7 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 
 
 
-#### 1.5.3.3. Web MVC核心：核心架构、处理流程、核心组件
+#### 1.5.2.3. Web MVC核心：核心架构、处理流程、核心组件
 
 核心架构 和 处理流程 后续说明。
 
@@ -613,3 +613,38 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 当然，如果是 RESTful 应用，处理流程发生了一些变化。
 
 
+
+
+
+### 1.5.3. (1-10)Spring Web Flux 应用
+
+**Spring Web Flux 是 Spring5 开始支持的一种新的 Web 特性**，是对 Servlet 进行的一个补充，也就是说，从我们的 Web 应用中，从传统的 **同步阻塞** 的编程 变成 **异步非阻塞** 的编程，这对我们的编程模型也是一大挑战和升级。
+
+#### 1.5.3.1. Reactor基础：Java Lambda、Mono、Flux
+
+**Java Lambda 是 Reactive（响应式编程）的一个基础，`Reactor` 是 `Reactive Stream` 的一种实现方式**。
+
+**`Java Reactive Stream`** 其实有好几种实现方式，包括：（它们的基础都是 Java Lambda。）
+
+- Java9 里 Flow API。
+- RxJava — Reactive Extensions for Java。
+- 同时它有两个核心接口—Mono 和 Flux 。
+
+
+
+#### 1.5.3.2. Web Flux 核心：Web MVC注解、函数式声明、异步非阻塞
+
+- **Web Flux 可以和 Spring MVC 注解 兼容的**，其实在官方文档上也有说明，如@Controller、@RequestMapping、@ResponseBody、@RequestBody 。
+- 函数式声明主要是 `RouterFunction`，Router 是路由器的意思，Function 是函数，可以通过路由的方式来表达函数，它可以通过我们编程的方式 更丰富的 去做方法内联。就是关于我们用函数的方式来进行声明我们的一些 Endpoint 的暴露，包括路径通过表达表来暴露。
+  - **函数式编程的好处**：有更好的弹性，可以通过很多条件来做，尽管这个东西可以在 Condition 条件上面做一个判断，但程序方面的灵活性就远远大过其它的方式，函数式编程比较直观一些，同时它可以绑定相应的实现方法，我们可以在一个声明表达式里面部署多个 Endpoint 以及 它们映射方法 的处理机制，不需要到处进行相应的绑定。
+- **非阻塞和异步 结合起来相对来讲 有性能上的提升的，因为可以提高吞吐量**。异步非阻塞包括两个方面：`Servlet3.1` 和 `Netty Reactor`。
+
+
+
+#### 1.5.3.3. 使用场景：Web Flux 优势和限制
+
+它的使用场景分成几个方面，和 SpringMVC 没有太大区别，一个是 **页面渲染**，一个是 **REST应用**，这两个应用是比较核心的。
+
+性能测试：<https://blog.ippon.tech/spring-5-webflux-performance-tests/>，这是一个性能方面的测试，<span style="color:red">结论是: 在 Web Flux 里面 **性能没有提升太多，在某些方面 Web Flux 性能反而会有所下降**。</span>
+
+<span style="color:orange">那为什么要用Reactive呢？提升系统的吞吐量，吞吐量不代表快。</span>
