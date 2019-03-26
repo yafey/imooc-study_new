@@ -431,9 +431,185 @@ public class DiveInSpirngBoot2Application {
 
 
 
-> <span style="color:red;">注意点：异步操作 比 同步操作 要复杂很多。</span>  示例: 见 提交 [待补充](/../../commit/4b2f9ec)
+> <span style="color:red;">注意点：异步操作 比 同步操作 要复杂很多。</span>  示例: 见 提交 [92c4068](/../../commit/92c4068)
 >
 > 1. <span style="color:green">**需要配置 `@WebServlet` 的 属性 `asyncSupported = true`**</span> , **不然会报错**。完整的注解为：  `@WebServlet(urlPatterns="/my/servlet",asyncSupported=true)` 
 > 2. 在业务代码完成后，<span style="color:green">**需要显式地 触发完成 `asyncContext.complete();`**  </span> ， 不然，浏览器会一直等待服务器端响应，直到达到 超时时间。
 
 ![1553526964077](README_images/1553526964077.png)
+
+
+
+
+
+### 1.5.3. (1-9)Spring Web MVC 应用 介绍
+
+> 需要了解 Spring Framework 中 Web MVC ， 这部分在 SpringBoot 中 没有太多变化。
+
+- **`Web MVC 视图`** ： 主要 跟 2 个接口有关。
+
+  > - `ViewResolver`
+  > - `View`
+
+  1. **常见模板引擎**
+     - `Thymeleaf` ： SpringBoot 官方推荐。
+     - `Freemarker` ： ftl 格式。
+     - `JSP`
+  2. **内容协商** ： 模板引擎的匹配策略。
+     - `ContentNegotiationConfigurer`
+     - `ContentNegotiationStrategy`
+     - `ContentNegotiatingViewResolver` ：该策略 会包含所有的模板引擎的  ViewResolver， 逐一进行处理。
+  3. **异常处理** ： <span style="color:orange">SpringBoot 中的 **「异常处理」**和 传统的 Spring MVC 的异常处理有所不同。</span>
+     - `@ExceptionHandler` 注解
+     - `HandlerExceptionResolver` 接口
+       - `ExceptionHandlerExceptionResolver` 默认实现。
+     - `BasicErrorController` (Spring Boot)
+
+- **Web MVC REST**
+
+  1. **资源服务**
+     - `@RequestMapping`
+       - `@GetMapping` 等变种
+     - `@ResponseBody`
+     - `@RequestBody`
+  2. **资源跨域**
+     - **`@CrossOrigin`** 注解
+     - `WebMvcConfigurer#addCorsMappings` 接口
+     - 传统解决方案 ：新型浏览器里面不推荐这两种方式 。
+       - ~~IFrame~~
+       - ~~JSONP~~
+  3. **服务发现**
+     - HATEOS
+
+- **Web MVC 核心**
+
+  1. 核心架构
+  2. 处理流程
+  3. 核心组件
+     - `DispatcherServlet`
+     - `HandlerMapping`
+     - `HandlerAdapter`
+     - `ViewResolver`
+       ...
+
+
+
+#### 1.5.3.1. Web MVC 视图：模板引擎、内容协商、异常处理等。
+
+Web MVC视图：**主要是 2 个接口： `ViewResolver`、`View`** 。
+
+> 传统 Spring MVC 时代， 实现方式基于我们的配置。 SpringBoot 中，自动装配 机制可以少写一些代码，但因此也产生了 黑盒，所以需要了解一些关键的实现。
+
+
+
+ViewResolver ： 视图处理器。 返回 View 对象。
+
+```java
+package org.springframework.web.servlet;
+
+//视图上的处理器
+public interface ViewResolver {
+
+    // 处理器的 处理方法。
+    // 根据 viewName 和 Locale 来查询或者处理 视图, 得到 View 对象。
+	View resolveViewName(String viewName, Locale locale) throws Exception;
+}
+
+```
+
+View ： 视图。视图只关心一件事情，那就是它的渲染（render）。
+
+```java
+package org.springframework.web.servlet;
+// 视图 
+public interface View {
+    // 视图的 渲染 方法。渲染 需要的上下文数据 就保存在 model 对象中，结合 request ， 返回相应的 response 。
+	void render(@Nullable Map<String, ?> model, HttpServletRequest request, HttpServletResponse response) throws Exception;
+}
+```
+
+
+
+每一种模板引擎就是对 `ViewResolver`、`View` 的实现，同时会结合相应的策略来操作。 常见的 Thymeleaf、Freemark、JSP 都有它们各自的实现。
+
+##### 模板引擎 与 内容协商
+
+Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 实现，同时会结合相应的策略来操作。response 就会输出内容，具体由 render 所在接口 View 的实现 来操作。
+
+当应用里有多种模板引擎，这个时候就是「**内容协商**」的优势了，结合 **相应的策略** 来选择最佳匹配的模板引擎来渲染。以 `ContentNegotiatingViewResolver` 策略为例， 这个内容协商策略 会包含所有的 ViewResolver ，然后逐一进行处理。
+
+
+
+##### 异常处理
+
+> <span style="color:orange">SpringBoot 中的 **「异常处理」**和 传统的 Spring MVC 的异常处理有所不同。</span>
+
+- 异常处理在 SpringMVC 是通过 `@ExceptionHandler` 注解来处理。
+
+- 另外，SpringMVC、Spring Boot 会自动帮我们创建 `HandlerExceptionResolver`，比如`ExceptionHandler` 的处理方式是由 `HandlerExceptionResolver` 的子类`ExceptionHandlerExceptionResolver` 产生的。
+
+- 在 Spring Boot 里面，我们前面看到的  `Whitelabel Error Page`（400页面），这个白页是由 `BasicErrorController` 生成的。`BasicErrorController`中的 `/error`  和白页中的 `/error` 相对应。
+  - `@RequestMapping("${server.error.path:${error.path:/error}}")`
+  - `BasicErrorController` 有两种方式的显示，一种是html方式，一种是json方式，两种不同的方式分别表达不同的方式和方法。
+    - 根据 request 的 header 里面的 `accept` 字段来 区分 （`	@RequestMapping(produces = "text/html")` ）。
+
+
+
+#### 1.5.3.2. Web MVC REST：资源服务、资源跨域、服务发现等
+
+>  RESTful 一般以 JSON 或 XML 作为响应体。
+
+##### 资源服务 
+
+> RESTful 的操作语义，GET/POST/PUT/DELETE 。
+
+相关的 常用注解如下：
+
+- `@RequestMapping`
+
+  - Spring 4.3 之后 新增了该注解的一些「同义词」：
+
+    `@GetMapping` 、 `@PostMapping`、`@PutMapping`、`@DeleteMapping` ，
+
+    分别对应 查询、添加、更新、删除。
+
+  - `@RequestMapping` 和 `@AliasFor` 是一种 「委派」 的方式。
+
+- `@ResponseBody`
+
+- `@RequestBody`
+
+![1553583463975](README_images/1553583463975.png)
+
+##### 资源跨域
+
+>  **`@CrossOrigin` 注解驱动** （since Spring4.2），**`WebMvcConfigurer` 接口编程** （since Spring3.1）。 都来自 Spring Framework 。
+
+- 传统资源跨域有两种解决办法，一种是 iframe，另一种是 JSONP，这两种方案各有优劣，但在新型浏览器里面不推荐这两种方式了。
+
+- 而是用 `@CrossOrigin` 注解 来进行操作，它会告诉浏览器，我有哪些东西是可以跨域的，有一些默认配置。Spring5.0 开始，不建议使用默认配置，需要自定义配置 `CorsConfiguration`。
+- 另外一种就是 `WebMvcConfigurer#addCorsMappings(CorsRegistry registry)` 方案，`@CrossOrigin` 和 `WebMvcConfigurer` 其实都是 SpringMVC 里面的，只是由于 Spring Boot 的流行，才把这些东西重新拾起来。
+
+
+
+##### 服务发现
+
+>  将应用提供的服务给暴露出去。这里主要是 HATEOS 的应用。
+
+其实在 SpringMVC 里面也有服务发现，只不过它在控制台（ 关键字：`Mapped`），控制台没办法暴露给服务，无法让程序识别，也就是说，如果当前应用的某个服务被访问时，同时告诉对方还提供了哪些服务。
+
+
+
+#### 1.5.3.3. Web MVC核心：核心架构、处理流程、核心组件
+
+核心架构 和 处理流程 后续说明。
+
+##### 核心组件
+
+核心组件的入口是 `DispatcherServlet`，它其实也是一个 Servlet，和普通的 Servlet 没有什么区别，**唯一的区别是它会把请求转发到不同的 Controller 里去，映射到 Controller 里的路径。**
+
+映射路径 和 `HandlerMapping` 进行交互，Handler 可以理解为就是 Controller 的处理方法，处理方法 和 Handler 做映射，所以有 `HandlerMapping`，`HandlerMapping` 是内部的一个转换，帮助我们把方法转换成它内部的一个实现，处理完之后会返回`ModelAndView`，`ModelAndView`中的 `Model` 会继续给 `ViewResolver` 来进行处理，最后生成视图 `View`。
+
+当然，如果是 RESTful 应用，处理流程发生了一些变化。
+
+
