@@ -661,7 +661,7 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 
 #### a.Servlet 容器 切换：Tomat -> jetty
 
-示例: 见 提交 [待补充](/../../commit/4b2f9ec)
+示例: 见 提交 [cd93b52](/../../commit/cd93b52)
 
 ```xml
 <dependency>
@@ -694,4 +694,37 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 </dependency>
 ```
 
+#### b.Servlet 容器 替换为 WebFlux 容器
+
+> - **传统的 Servlet 模块 和 WebFlux 模块 不兼容**。
+>   - Servlet -> WebFlux 切换时， 需要去除 Servlet 相关使用。
+>
+> - 如两者都存在时，将不会使用 WebFlux 。
+>   - WebFlux 的优先级 低于 传统 Servlet ，**比如 Jetty 和 WebFlux 的依赖同时存在，会以 Jetty 方式启动。**
+
+将如下配置加到 pom.xml 中，注意把 web 配置注释掉，加上webflux starter 依赖。
+
+```xml
+<!--
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+    <exclusions>
+        <exclusion>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jetty</artifactId>
+</dependency>
+-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-webflux</artifactId>
+</dependency>
+```
 
