@@ -588,7 +588,14 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 - 传统资源跨域有两种解决办法，一种是 iframe，另一种是 JSONP，这两种方案各有优劣，但在新型浏览器里面不推荐这两种方式了。
 
 - 而是用 `@CrossOrigin` 注解 来进行操作，它会告诉浏览器，我有哪些东西是可以跨域的，有一些默认配置。Spring5.0 开始，不建议使用默认配置，需要自定义配置 `CorsConfiguration`。
-- 另外一种就是 `WebMvcConfigurer#addCorsMappings(CorsRegistry registry)` 方案，`@CrossOrigin` 和 `WebMvcConfigurer` 其实都是 SpringMVC 里面的，只是由于 Spring Boot 的流行，才把这些东西重新拾起来。
+
+  ![1554972263666](README_images/1554972263666.png)
+
+- 另外一种就是 `WebMvcConfigurer#addCorsMappings(CorsRegistry registry)` 方案。
+
+  ![1554972154976](README_images/1554972154976.png)
+
+- `@CrossOrigin` 和 `WebMvcConfigurer` 其实都是 SpringMVC 里面的，只是由于 Spring Boot 的流行，才把这些东西重新拾起来。
 
 
 
@@ -746,8 +753,160 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 
 ### 1.6.3. 自定义Reactive Web Server
 
-`ReactiveWebServerFactoryCustomizer` 是 接口 `WebServerFactoryCustomizer` ` 的 Reactive 方式的实现类 ，它的实现很简单，就是端口、地址、SSL等的实现。
+`ReactiveWebServerFactoryCustomizer` 是 接口 `WebServerFactoryCustomizer` 的 Reactive 方式的实现类 ，它的实现很简单，就是端口、地址、SSL等的实现。
 
 我们在这里可以扩展它的实现，如可以覆盖它的默认行为，提供一些具有高级特性的行为。一般来说，Spring Boot里的默认实现只是提供一些通用实现，或者说是最简单的实现、最常用的实现，这种实现方式也许满足你大部分需求，也可以进行自定义的调整。
 
 ![1553618464737](README_images/1553618464737.png)
+
+
+
+
+
+
+
+## 1.7. (1-12) 数据相关
+
+> 自动装配是很复杂的过程，需要了解底层的技术细节，才能实现很高级的特性，如 JDBC 的 「多数据源」（Spring Boot 默认不支持）、调整 JPA 的行为等 都需要对底层技术有一定的了解。
+
+![1555052726090](README_images/1555052726090.png)
+
+**关系型数据（数据操作还有缓存(NOSQL、REDIS)、JMS消息服务）**
+
+### 1.7.1. JDBC
+
+> 数据源、JdbcTemplate、自动装配
+
+1. **依赖**
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-jdbc</artifactId>
+   </dependency>
+   ```
+
+   Spring Boot2.0 开始，JDBC 连接池依赖一个**新型的连接池** (`HikariCP`)，<span style="color:green">**这个连接池是一个非常好性能的连接池**</span>，同时依赖 Spring5.0 对 JDBC 的实现。
+
+   ![1555052920781](README_images/1555052920781.png)
+
+2. **数据源接口**
+
+   `javax.sql.DataSource`，它是 JAVA1.4 就有了的一个接口，数据库连接池就是把 DataSource 进行包装，t提高执行效率 。
+
+   
+
+3. **`JdbcTemplate`** ：它是 `spring-jdbc` 中  模板（Template）的一种实现，不是 SpringBoot 的一部分。
+
+   
+
+4. **自动装配：`JdbcTemplateAutoConfiguration`** 
+
+   前提约束条件 和 前置依赖：必须在 `DataSourceAutoConfiguration` 之后配置。
+
+   我们可以打开 `spring-boot-autoconfigure` 中的 `spring.factories`，可以看到都在 `org.springframework.boot.autoconfigure.EnableAutoConfiguration` 中配置。
+
+   - 我们可以看到，Spring Boot 配置了非常多的自动装配，这些东西都它默认内部实现的，帮助简化我们的配置和开发。
+
+   ![1555054311740](README_images/1555054311740.png)
+
+
+
+### 1.7.2. JPA
+
+>  实体映射关系、实体操作、自动装配。
+
+1. **依赖**
+
+   JPA 和 JDBC 并不冲突，JPA 需要 JDBC 的 DataSource，DataSource 会在 DataSourceAutoConfiguration 中自动装配，会产生一个数据库连接池，然后数据库会把这个 DataSource 进行保存，以便 getConnection。
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-data-jpa</artifactId>
+   </dependency>
+   ```
+
+   ![1555320013701](README_images/1555320013701.png)
+
+2. JPA 中的 **实体映射关系**
+
+   > 实体映射关系 就是 数据库中的 table（表）或 主键等约束 之间的关系。
+
+   - `@javax.persistence.OneToOne`
+
+   - `@javax.persistence.OneToMany`
+
+   - `@javax.persistence.ManyToOne`
+
+   - `@javax.persistence.ManyToMany`
+
+   - ...
+
+     
+
+3. **实体操作**
+
+   `javax.persistence.EntityManager`，增、删、改、查操作。
+
+   ​	如 `persist` 是存的方法，`merge` 更新，`remove` 删除，`find` 查找。
+
+   
+
+4. **自动装配**
+
+   `HibernateJpaAutoConfiguration`：它主要的操作在`HibernateJpaConfiguration`中 。
+
+   ![1555320215250](README_images/1555320215250.png)
+
+
+
+### 1.7.3. 事务 (Transaction)
+
+>  Spring事务抽象、JDBC事务处理、自动装配。
+
+Spring 事务 在 Spring 里面是非常重要的一块，包括几个方面，有一个事务的抽象，其中包括 JDBC 事务的处理以及它的自动装配。
+
+1. **依赖**
+
+```xml
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-tx</artifactId>
+</dependency>
+```
+
+　
+
+2. **Spring 事务抽象**
+
+　　**PlatformTransactionManager**：它是根接口，是一个关键的接口，这里主要有两种事务的具体实现，一种是 `JTA`（分布式事务， `JtaTransactionManager` ），另一种是 JDBC 的 `DataSource` 事务 (`DataSourceTransactionManager` )。
+
+
+
+3. **JDBC 事务处理**
+
+   `DataSourceTransactionManager`
+
+   
+
+4. **自动装配**
+
+   `TransactionAutoConfiguration`
+
+   > `spring-boot-autoconfigure` 中的 `spring.factories`，确实也有`org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration` 配置，也是依赖于 `EnableAutoConfiguration` 进行操作的。
+
+   ![1555948964472](README_images/1555948964472.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
