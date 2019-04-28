@@ -868,45 +868,226 @@ Thymeleaf、Freemark、JSP 每一种模板引擎都会对应一个 ViewResolver 
 Spring 事务 在 Spring 里面是非常重要的一块，包括几个方面，有一个事务的抽象，其中包括 JDBC 事务的处理以及它的自动装配。
 
 1. **依赖**
+    ```xml
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-tx</artifactId>
+    </dependency>
+    ```
+
+2. **Spring 事务抽象**
+**PlatformTransactionManager**：它是根接口，是一个关键的接口，这里主要有两种事务的具体实现，一种是 `JTA`（分布式事务， `JtaTransactionManager` ），另一种是 JDBC 的 `DataSource` 事务 (`DataSourceTransactionManager` )。
+
+3. **JDBC 事务处理**
+	`DataSourceTransactionManager`
+
+4. ## **自动装配**
+
+  `TransactionAutoConfiguration`> `spring-boot-autoconfigure` 中的 `spring.factories`，确实也有`org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration` 配置，也是依赖于 `EnableAutoConfiguration` 进行操作的。
+
+  ![1555948964472](README_images/1555948964472.png)
+
+
+
+
+
+## 1.8. (1-13) 功能扩展--SpringApplication 分析
+
+**Spring Boot 应用** ： 此处的 「应用」是个名字，以 SpringApplication 引导类 作为切入点，进行分析。
+
+- **失败分析** ： 比如之前依赖了 jdbc 后应用启动不起来，为什么启动不起来，因为即没有连 嵌入式数据库，也没有连传统 关系型数据库，因此失败。 了解触发原理及自定义配置。
+- **应用特性**： 配置调整。比如 引入 WEB 依赖后就可以成为一个 Web 应用，了解如何成为(非Web 应用)其他类型 及 如何配置。
+- **事件监听**： 比较复杂的一块（很多细节，包括源码分析 及 事件监听 模式的 API 使用），主要包括 Spring 事件、SpringBoot 事件 及 自定义扩展。
+- **Profile**：侧面，有条件的配置。
+- **配置属性**： 外部化配置 的 底层依赖， 外部化配置 主要依赖于 Spring Framework 的 API。
+- **Spring Boot Starter 开发，最佳实践**： 比较复杂，需要考虑清楚 自动装配过程中 前面依赖什么，后面依赖什么，需要什么样的条件触发，否则启动也会失败。如果启动失败，如何 结合 失败分析 提供一份 失败报告。
+
+
+![1555950597991](README_images/1555950597991.png)
+
+
+
+### 1.8.1. SpringApplication
+
+- 失败分析：`FailureAnalysisReporter` 类来表达的
+
+  > 该类从 Spring Boot 1.4 才有。
+  >
+  > <span style="color:red">Spring Boot 开发 或 扩展 中，是十分复杂的，要了解到一些`版本依赖`，</span>
+  >
+  > - <span style="color:red">不光是 SpringBoot 的版本依赖 以及 API 的起始版本 ， Spring Boot 的兼容情况；</span>
+  > - <span style="color:red">还要了解 Spring Framework API 的一些细则。</span>
+  >
+  > <span style="color:red">所以深度实践 SpringBoot 是有一定难度的，工作中应该有相应的体会。</span>
+
+  ![1556263441318](README_images/1556263441318.png)
+
+- 应用特性：SpringApplication **`Fluent API`**
+
+  > `Fluent API` 的细节 不在 此处 展开。
+
+  `SpringApplication.run(Class<?>, String...)` 返回值 `ConfigurableApplicationContext` 即为 Spring 的上下文，从方法名上也可知道，SpringBoot 其实是一个 Spring 应用 （SpringApplication）。
+
+  ![1556430376871](README_images/1556430376871.png)
+
+  ```java
+  @SpringBootApplication
+  public class C252DiveInSpirngBoot2Application {
+  
+  	public static void main(String[] args) {
+  		// SpringApplication.run(C252DiveInSpirngBoot2Application.class, args);
+  		 new SpringApplicationBuilder(C252DiveInSpirngBoot2Application.class).run(args);
+  		// 上面的 这两种写法是等价的。
+  		
+  		// Fluter API 使用示例
+  //		new SpringApplicationBuilder(C252DiveInSpirngBoot2Application.class)
+  //		.web(WebApplicationType.NONE) // Fluter API, 指定应用为 非 Web 应用。
+  //		.properties("abc=def") // Fluter API, 设置属性 abc
+  //		.run(args);
+  	}
+  }
+  ```
+
+  ![1556431209598](README_images/1556431209598.png)
+
+- 事件监听: 略，后续说明。
+
+
+
+### 1.8.2. Spring Boot 配置
+
+- 外部化配置 ： `ConfigurationProperty`
+
+  > SpringBoot 外部化配置在 2.0 中做了重大调整，在 1.0 版本中，主要通过 `配置属性(PropertySources)` 来实现。
+
+  配置来源不止 17 种， <span style="color:red">SpringBoot 官方文档有时候也不是对的（有些地方 写的不详细 或 有错误）。</span>
+
+  `24. Externalized Configuration` （ [官方文档分章节版 ](https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-external-config.html) | [官方文档 htmlsigle 版](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#boot-features-external-config) )
+
+  ![1556466476371](/README_images/1556466476371.png)
+
+  ![1556466557623](/README_images/1556466557623.png)
+
+- `@Profile`
+
+  Profile 在很多软件里都会有，这里（Spring 中）主要是一个注解的方式，`@Profile` 相当于是一种条件的方式，<span style="color:red">在 SpringBoot 2.0 （Spring4 ？） 之前，没有 `@Conditional` 注解，通过`@Profile` 来进行控制。</span>
+
+  > 当有出现明显特征的时候，如线上和线下环境，线上加载什么服务，线下加载什么服务，这个时候可以通过这个条件来进行区分，但是 `@Profile` 的能力非常弱，后续会调整为 `@Conditional`，`@Conditional` 和前面提到的 自动装配 非常相似。
+
+- 配置属性 ： `PropertySources`，它是Spring的一个接口。
+
+  `PropertySources` 是一个复数的形式，并且实现了 Iterable 接口，也就是说`PropertySources` 类可以迭代 `PropertySource`，<span style="color:green">**`PropertySource` 有 17 种不同的依赖的原则，并有一定的顺序（见 `24. Externalized Configuration`）**</span>，因此它会有很多很多的来源。
+
+  ![1556459224069](README_images/1556459224069.png)
+
+
+
+### 1.8.3. Spring Boot Starter：Starter开发、最佳实践
+
+这部分相对难些，它不但要了解 Spring 自动装配的主要的特性，同时还包括 外部化配置 以及 运维管理。
+
+
+
+
+
+## 1.9.(1-14) 运维管理—Actuator—Production-ready Feature
+
+**`Spring Boot Actuator `** ：Spring Boot的自动装置。通过 端点（Endpoints） 的方式进行管理。
+
+> 有两个含义:
+>
+> - 一个是我可以控制spring Boot的一些行为，
+> - 同时我可以记录它的一些行为。
+
+1. **`端点`：各类 Web 和 JMX Endpoints**
+
+   > 端点 是给用户（运维人员）和应用之间的交互方式。
+
+   它有两种方式来表达，一种是`Web Endpoints`，一种是 `JMX Endpoints`。
+
+   这两种 Endpoints 是不同的介质（或者手段）来进行管理。
+
+   - 当你没有开 Web 端口时，可通过 JMX 来进行操作。
+   - 而 JMX 可支持远程操作，基于数据敏感性，也许会把 JMX 关掉、开放 Web 方式来进行操作。
+
+2. **`健康检查`：Health、HealthIndicator**
+
+   Health、HealthIndicator 这两个接口也是通过 端点 方式来进行描述的。
+
+3. **`指标`：内建 Metrics、自定义 Metrics**
+
+   Metrics 既可以暴露应用的 Metrics，也可以暴露业务的 Metrics，如访问多少次、交易的数量。
+
+   可以结合 Web 和 JMX Endpoints 把运维平台搭建起来。
+
+![1556466782045](/README_images/1556466782045.png)
+
+### 1.9.0. 引入依赖
+
+`52. Enabling Production-ready Features` （ [官方文档分章节版 ](https://docs.spring.io/spring-boot/docs/current/reference/html/production-ready-enabling.html) | [官方文档 htmlsigle 版](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#production-ready) )
+
+添加依赖：
 
 ```xml
 <dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-tx</artifactId>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
 </dependency>
 ```
 
-　
-
-2. **Spring 事务抽象**
-
-　　**PlatformTransactionManager**：它是根接口，是一个关键的接口，这里主要有两种事务的具体实现，一种是 `JTA`（分布式事务， `JtaTransactionManager` ），另一种是 JDBC 的 `DataSource` 事务 (`DataSourceTransactionManager` )。
 
 
+重新启动后发现输出了两个端点信息：
 
-3. **JDBC 事务处理**
-
-   `DataSourceTransactionManager`
-
-   
-
-4. **自动装配**
-
-   `TransactionAutoConfiguration`
-
-   > `spring-boot-autoconfigure` 中的 `spring.factories`，确实也有`org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration` 配置，也是依赖于 `EnableAutoConfiguration` 进行操作的。
-
-   ![1555948964472](README_images/1555948964472.png)
+![1556461590713](README_images/1556461590713.png)
 
 
 
+### 1.9.1. 端点（含 健康检查、指标 Metrics）
 
+1. **Web Endpoints**
+   默认情况下可以访问下面几个链接：
 
+   | URL Path         | 描述                                                         |
+   | ---------------- | ------------------------------------------------------------ |
+   | /actuator/health | status 是 UP ，说明应用启动起来了。<br/>![1556462427754](/README_images/1556462427754.png) |
+   | /actuator/info   | 默认情况下，没有任何信息，说明没有暴露任何信息。<br/>但至少，这也说明 actuator 给我们返回了信息，只不过这个信息是没有内容的。<br/>![1556462456789](/README_images/1556462456789.png) |
+   | /actuator        | 这里就是 **REST 中所谓的 `服务发现`**，因为用户并不知道 application 提供了哪些服务，所以需要这样一个东西来给我们进行描述。<br/>![1556462573062](/README_images/1556462573062.png) |
 
+2. **JMX Endpoints （含 健康检查、指标 Metrics）**
 
+   - 打开 `JAVA_HOME/bin/jconsole.exe` 界面，「连接」项目的 进程（可通过项目名称 或 PID 定位，PID 会在项目启动时 输出。）
 
+     ![1556462978576](/README_images/1556462978576.png)
 
+     ![1556463218961](/README_images/1556463218961.png)
 
+   - 同样选择 health，可以看到，左侧状态树中，**比 Web Endpoints 方式获得的信息多**（因为 Web Endpoints 可能会暴露到公网去，为减少风险，信息尽量少）。
 
+     ![1556463367808](/README_images/1556463367808.png)
 
+     - 开放所有的 Web EndPoints ，<span style="color:red">不推荐！</span>
+
+       ```properties
+       #开放所有的Web Endpoints
+       management.endpoints.web.exposure.include=*
+       ```
+
+       重启应用，刷新 http://localhost:8080/actuator，可以看到更多的服务发现。
+
+       ![1556463619441](/README_images/1556463619441.png)
+
+       列举几个服务：
+
+       ```txt
+       /actuator/beans：可以看到当前应用当前上下文的所有bean
+       
+       /actuator/mappings：可以看到所有访问页面的情况
+       
+       /actuator/metrics：可以看到通过查看对应的信息，如http://localhost:8080/actuator/metrics/jvm.memory.max 查看最大内存
+       ```
+
+       ![1556463929303](/README_images/1556463929303.png)
+
+       ![1556464463784](/README_images/1556464463784.png)
 
