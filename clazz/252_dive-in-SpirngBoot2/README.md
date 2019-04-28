@@ -964,9 +964,9 @@ Spring 事务 在 Spring 里面是非常重要的一块，包括几个方面，�
 
   `24. Externalized Configuration` （ [官方文档分章节版 ](https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-external-config.html) | [官方文档 htmlsigle 版](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#boot-features-external-config) )
 
-  ![1556466476371](/README_images/1556466476371.png)
+  ![1556466476371](README_images/1556466476371.png)
 
-  ![1556466557623](/README_images/1556466557623.png)
+  ![1556466557623](README_images/1556466557623.png)
 
 - `@Profile`
 
@@ -1020,7 +1020,7 @@ Spring 事务 在 Spring 里面是非常重要的一块，包括几个方面，�
 
    可以结合 Web 和 JMX Endpoints 把运维平台搭建起来。
 
-![1556466782045](/README_images/1556466782045.png)
+![1556466782045](README_images/1556466782045.png)
 
 ### 1.9.0. 引入依赖
 
@@ -1050,21 +1050,21 @@ Spring 事务 在 Spring 里面是非常重要的一块，包括几个方面，�
 
    | URL Path         | 描述                                                         |
    | ---------------- | ------------------------------------------------------------ |
-   | /actuator/health | status 是 UP ，说明应用启动起来了。<br/>![1556462427754](/README_images/1556462427754.png) |
-   | /actuator/info   | 默认情况下，没有任何信息，说明没有暴露任何信息。<br/>但至少，这也说明 actuator 给我们返回了信息，只不过这个信息是没有内容的。<br/>![1556462456789](/README_images/1556462456789.png) |
-   | /actuator        | 这里就是 **REST 中所谓的 `服务发现`**，因为用户并不知道 application 提供了哪些服务，所以需要这样一个东西来给我们进行描述。<br/>![1556462573062](/README_images/1556462573062.png) |
+   | /actuator/health | status 是 UP ，说明应用启动起来了。<br/>![1556462427754](README_images/1556462427754.png) |
+   | /actuator/info   | 默认情况下，没有任何信息，说明没有暴露任何信息。<br/>但至少，这也说明 actuator 给我们返回了信息，只不过这个信息是没有内容的。<br/>![1556462456789](README_images/1556462456789.png) |
+   | /actuator        | 这里就是 **REST 中所谓的 `服务发现`**，因为用户并不知道 application 提供了哪些服务，所以需要这样一个东西来给我们进行描述。<br/>![1556462573062](README_images/1556462573062.png) |
 
 2. **JMX Endpoints （含 健康检查、指标 Metrics）**
 
    - 打开 `JAVA_HOME/bin/jconsole.exe` 界面，「连接」项目的 进程（可通过项目名称 或 PID 定位，PID 会在项目启动时 输出。）
 
-     ![1556462978576](/README_images/1556462978576.png)
+     ![1556462978576](README_images/1556462978576.png)
 
-     ![1556463218961](/README_images/1556463218961.png)
+     ![1556463218961](README_images/1556463218961.png)
 
    - 同样选择 health，可以看到，左侧状态树中，**比 Web Endpoints 方式获得的信息多**（因为 Web Endpoints 可能会暴露到公网去，为减少风险，信息尽量少）。
 
-     ![1556463367808](/README_images/1556463367808.png)
+     ![1556463367808](README_images/1556463367808.png)
 
      - 开放所有的 Web EndPoints ，<span style="color:red">不推荐！</span>
 
@@ -1075,7 +1075,7 @@ Spring 事务 在 Spring 里面是非常重要的一块，包括几个方面，�
 
        重启应用，刷新 http://localhost:8080/actuator，可以看到更多的服务发现。
 
-       ![1556463619441](/README_images/1556463619441.png)
+       ![1556463619441](README_images/1556463619441.png)
 
        列举几个服务：
 
@@ -1087,7 +1087,7 @@ Spring 事务 在 Spring 里面是非常重要的一块，包括几个方面，�
        /actuator/metrics：可以看到通过查看对应的信息，如http://localhost:8080/actuator/metrics/jvm.memory.max 查看最大内存
        ```
 
-       ![1556463929303](/README_images/1556463929303.png)
+       ![1556463929303](/README_images/556463929303.png)
 
-       ![1556464463784](/README_images/1556464463784.png)
+       ![1556464463784](/README_images/556464463784.png)
 
