@@ -110,7 +110,7 @@ public class SpringConfiguration {
 
 
 
-具体代码见 commit:  [7cd307e](/../../7cd307e)
+具体代码见 commit:  [7cd307e](/../../commit/7cd307e)
 
 > 代码说明解释：
 >
@@ -280,7 +280,7 @@ public interface ImportSelector {
 
 两种实现方式对比，接口驱动实现 由于中间经过 ImportSelector 转换，此种方式 相比 注解驱动实现 更有弹性，能够实现 bean 加载方式 的多样化，自定义实现 多种返回值，类似于 条件装配。
 
-具体代码见 commit:  [f9c6f04](/../../f9c6f04)
+具体代码见 commit:  [f9c6f04](/../../commit/f9c6f04)
 
 > 代码说明：
 >
@@ -564,7 +564,7 @@ public interface Condition {
 `@Profile(“Java7”)` : for 循环
 `@Profile(“Java8”)` : Lambda
 
-`@Profile` 代码见 commit:  [e605f8d](/../../e605f8d)
+`@Profile` 代码见 commit:  [e605f8d](/../../commit/e605f8d)
 
 > 代码说明：
 >
@@ -601,7 +601,7 @@ public @interface ConditionalOnProperty {
 
 
 
-自定义的 `@ConditionalOnSystemProperty` 注解  代码见 commit:  [c635fdc](/../../c635fdc)
+自定义的 `@ConditionalOnSystemProperty` 注解  代码见 commit:  [c635fdc](/../../commit/c635fdc)
 > 代码说明：
 >
 > 1. demo 启动类：`com.yafey.support.spring.condition.Bootstrap4ConditionalOnSystemProperty`
@@ -681,7 +681,7 @@ SpringBoot 启动时，`SpringFactoriesLoader` 的 `loadFactories` 方法会找�
 
 > 实现三部曲： 1. 激活自动装配；2. 实现自动装配；3. 配置自动装配实现
 
- **自定义 自动装配 `HelloWorldAutoConfiguration`** 代码见 commit:  [c635fdc](/../../c635fdc)
+ **自定义 自动装配 `HelloWorldAutoConfiguration`** 代码见 commit:  [c635fdc](/../../commit/c635fdc)
 
 > 代码说明：
 >
