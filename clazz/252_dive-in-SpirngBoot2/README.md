@@ -3,6 +3,15 @@ typora-root-url: ./
 typora-copy-images-to: ./README_images/
 ---
 
+> 小马哥 该视频教程 博客： [《Spring Boot 编程思想》](https://mercyblitz.github.io/books/thinking-in-spring-boot/)
+
+目录：
+1. [系列总览](README.md) : 即当前页面。
+2. [走向自动装配](README-Section2.md)
+
+
+
+---
 
 # Spring Boot 2.0深度实践之核心技术篇
 
