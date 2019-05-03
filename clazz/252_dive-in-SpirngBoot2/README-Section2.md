@@ -681,7 +681,7 @@ SpringBoot 启动时，`SpringFactoriesLoader` 的 `loadFactories` 方法会找�
 
 > 实现三部曲： 1. 激活自动装配；2. 实现自动装配；3. 配置自动装配实现
 
- **自定义 自动装配 `HelloWorldAutoConfiguration`** 代码见 commit:  [c635fdc](/../../commit/c635fdc)
+ **自定义 自动装配 `HelloWorldAutoConfiguration`** 代码见 commit:  [425fac0](/../../commit/425fac0)
 
 > 代码说明：
 >
