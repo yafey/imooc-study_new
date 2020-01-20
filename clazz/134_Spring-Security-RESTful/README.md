@@ -248,6 +248,14 @@ security.basic.enabled=false
 
 # 第3章 使用 Spring MVC 开发 RESTful API
 
+- 使用 Spring MVC 编写 Restful API 。
+  - 以用户 CRUD 为例，同时介绍 <span style="color:blue">**常用的注解**</span> 。
+- 使用 Spring MVC 处理 其他 Web 应用 常见的 需求 和 场景。
+  - 介绍 <span style="color:blue">**如何处理 静态资源 和 异常，如何使用 Spring MVC 的拦截器，文件的上传下载，请求的异步开发 等**</span>。
+- Restful API 开发常用辅助框架 ： Swagger 和 WireMock 。
+
+
+
 ## 3.1. RESTful 简介 及编写 RESTful API
 
 ### 3.1.1. RESTful 第一印象
@@ -291,6 +299,15 @@ security.basic.enabled=false
 
 dto 包 用于放 输入/输出 的 对象。
 
+引入 spring test 包
+
+```xml
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-test</artifactId>
+</dependency>
+```
+
 测试用例 详见 ： [UserControllerTest.java](C134_imooc-security-demo-browser/src/test/java/com/yafey/web/controller/UserControllerTest.java)
 
 ```java
@@ -304,7 +321,7 @@ public class UserControllerTest {
 	private MockMvc mockMvc;
 
 	@Before
-	// Before 注解会在 所有 Test cases 之前 执行， 一般用于 环境初始化。
+	// Before 注解会在 每一个 Test cases 之前 执行， 一般用于 环境初始化。
 	public void setup() {
 		// 伪造 MVC 环境，不用真正的启动 Tomcat。
 		mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
@@ -359,6 +376,7 @@ public List<User> queryList() {
 * `@PageableDefault` ： 指定分页参数默认值
 * `@PathVariable` 映射 **url 片段** 到 java 方法的参数  (视频 3-3 中提及。)
   * 在 url 声明中 使用 正则表达式
+  * JsonView 控制 json 输出内容
 * `@RequestBody` 映射 **请求体** 到 java 方法的参数 (视频 3-4 中提及。)
 
 
@@ -411,9 +429,9 @@ public List<User> queryList() {
     
     ```
 
-5.   `@PathVariable` 也有和 `@RequestParam` 类似的属性，**默认参数名 与 方法形参名 一致， 也可以自己指定**。
+5. `@PathVariable` 也有和 `@RequestParam` 类似的属性，**默认参数名 与 方法形参名 一致， 也可以自己指定**。
 
-    >  URL 中正则表达式的用法 `:<正则表达式>`  。
+    > URL 中正则表达式的用法 `:<正则表达式>`  。
 
     ```java
     // URL 中使用 正则表达式，限制 用户 id 只能是 数字，
@@ -467,7 +485,7 @@ public List<User> queryList() {
 
 #### 3-3. JsonView 控制 json 输出内容
 
-示例: 见 提交 [97bc730](/commit/97bc73027a5bd0cfa21d3a5684983a57e6ec6490)
+示例: 见 提交 [97bc730](../../commit/97bc73027a5bd0cfa21d3a5684983a57e6ec6490)
 
 JsonView 使用步骤
 > 使用场景： 在 queryList 时 返回部分字段（示例中只返回 username）； 在 getInfo （单个用户）时 返回所有的字段（示例中比 queryList 多返回了 password 字段）。
@@ -490,7 +508,7 @@ result:{"username":"tom","password":null}
 
 #### 3-4. 日期类型参数的处理 ：使用 时间戳 [ `new Date().getTime();` ]
 
-示例: 见 提交 [0d005a3](/commit/0d005a33f749be141e16d75014ae942ecd989930)
+示例: 见 提交 [0d005a3](../../commit/0d005a33f749be141e16d75014ae942ecd989930)
 
 不管是 Java 还是 JavaScript ， 都有能力将 时间戳 转化成相应的时间。
 
@@ -555,7 +573,7 @@ spring:
 
 #### 3-4 + 3-5. `@Valid` 注解 及 常用的 验证注解
 
-示例: 见 提交 [56d8161](//commit/56d8161f6e8a2d5d20fb5eff72df56ec1acc14d9)
+示例: 见 提交 [56d8161](../../commit/56d8161f6e8a2d5d20fb5eff72df56ec1acc14d9)
 
 来自 `Hibernate Validator` --> http://hibernate.org/validator/
 
