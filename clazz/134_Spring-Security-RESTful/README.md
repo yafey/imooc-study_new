@@ -147,7 +147,7 @@ MySQL （MySQL Community Server）:  https://dev.mysql.com/downloads/mysql/  , �
 		<plugin>
 			<groupId>org.apache.maven.plugins</groupId>
 			<artifactId>maven-compiler-plugin</artifactId>
-            <!-- version 不用指定 -->
+            <version>2.3.2</version>
 			<configuration>
 				<source>1.8</source>
 				<target>1.8</target>
@@ -181,7 +181,7 @@ spring-social-security
 spring-social-web
 
 # 工具包 ， 字符、集合、反射 操作。
-commons-lang
+commons-lang3  # lang 包可以说是废弃了，以后请不要使用。采用lang3直接代替即可
 commons-collections
 commons-beanutils
 ```
@@ -222,6 +222,26 @@ spring.redis.port=6379
 # Exp5:需要进行身份验证
 # RS5 关闭 默认的 HTTP Basic 的认证。
 security.basic.enabled=false
+
+# Exp6: 打出来的 jar 包只有 几kb .
+# RS6: 需要指定一个 build 插件。
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+			<version>2.1.2.RELEASE</version>
+			<executions>
+				<execution>
+					<goals>
+						<goal>repackage</goal>
+					</goals>
+				</execution>
+			</executions>
+		</plugin>
+	</plugins>
+	<finalName>demo-browser</finalName>
+</build>
 ```
 
 
