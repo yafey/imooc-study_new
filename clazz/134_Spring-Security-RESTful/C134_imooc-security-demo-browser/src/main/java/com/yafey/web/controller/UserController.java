@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.validation.Valid;
+
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import org.springframework.data.domain.Pageable;
@@ -19,8 +20,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
 import com.fasterxml.jackson.annotation.JsonView;
 import com.yafey.dto.User;
+import com.yafey.dto.User2;
 import com.yafey.dto.UserQueryCondition;
 
 import lombok.extern.slf4j.Slf4j;
@@ -86,8 +89,15 @@ public class UserController {
 		return user;
 	}
 
+    @PutMapping("/user2/{id:\\d+}")
+    public User2 updateUserSucceed(@Valid @RequestBody User2 user) throws Exception {
+    	user.setId(1);
+        log.info(ReflectionToStringBuilder.toString(user, ToStringStyle.MULTI_LINE_STYLE));
+        return user;
+    }
+	
     @PutMapping("/user/{id:\\d+}")
-    public User updateUser(@Valid @RequestBody User user, BindingResult errors) {
+    public User updateUser(@Valid @RequestBody User user, BindingResult errors) throws Exception {
     	if(errors.hasErrors()) {
     		String errorList = errors.getAllErrors().stream().map(error -> {
     			FieldError fieldError =  (FieldError) error;

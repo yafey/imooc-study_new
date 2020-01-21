@@ -698,7 +698,8 @@ public void whenUpdateFailed() throws Exception {
    ```java
    public class MyConstraintValidator implements ConstraintValidator<MyConstraint, Object> {
    
-   	// 不用在 自定义的校验器上用 @Component 或 @Service 标注，
+   	// 在 校验器 里面可以注入 Spring 容器中的任何东西，来执行校验逻辑。helloService 只是作为一个示例。
+   	// 因为 implements 了 ConstraintValidator 接口， 不用在 自定义的校验器上用 @Component 或 @Service 标注，
    	// Spring 会自动将 自定义的 校验器 作为 bean 来管理， 自动注入 Spring 容器中的 其他 bean。
    	@Autowired
    	private HelloService helloService;
@@ -767,7 +768,7 @@ public void whenUpdateFailed() throws Exception {
 
 #### Spring Boot 中默认的错误处理机制
 
-Spring Boot 错误处理类 ： **`BasicErrorController`** 类中 根据 请求头中是否包含 `text/html` 来决定是返回 HTML 页面 还是 JSON 字符串。
+<span style="color:blue"> **Spring Boot 错误处理类 ： `BasicErrorController` 类中 根据 请求头中是否包含 `text/html` 来决定是返回 HTML 页面 还是 JSON 字符串**。</span>
 
 ```java
 package org.springframework.boot.autoconfigure.web;
@@ -822,14 +823,14 @@ A: SPel ? 待研究。
 
 
 #### 自定义异常处理
-- 针对 浏览器 请求
+- **针对 浏览器 请求**
 
   创建以 错误码 命名的 html 文件。 如 统一的 404 页面 ： `src/main/resources/error/404.html` 。
 
 - **针对 客户端 的请求 （JSON）**
 
   ```java
-  @RestControllerAdvice  // 标识 这是一个 自定义处理 Controller 异常的类。
+  @RestControllerAdvice	// 标识 这是一个 处理 Controller 异常 的类，并以 JSON 格式返回。
   public class ControllerExceptionHandler {
   
       @ExceptionHandler(UserException4Demo.class)	// 标识 需要处理的 异常类型

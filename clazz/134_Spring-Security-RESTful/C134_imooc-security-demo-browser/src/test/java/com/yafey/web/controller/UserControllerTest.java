@@ -6,9 +6,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -159,11 +161,11 @@ public class UserControllerTest {
 
 	@Test
 	public void whenUpdateSuccess() throws Exception {
-		String content = "{\"id\":\"1\",\"username\":\"user1\"}";
+		String content = "{\"id\":\"1\",\"username\":\"user1\",\"password\":1234,\"birthday\":" + new Date().getTime() + "}";
 		log.info("whenUpdateSuccess content:{}", content);
 		// @formatter:off
 		String result = mockMvc.perform(
-					put("/user/1")
+					put("/user2/1")
 					.content(content)
 					.contentType(MediaType.APPLICATION_JSON_UTF8)
 				)
@@ -210,6 +212,22 @@ public class UserControllerTest {
 				)
 				.andExpect(status().isOk())
 				;
+		// @formatter:on
+	}
+	
+	@Test
+	public void whenGetException() throws Exception {
+		// @formatter:off
+		
+//		{"id":1,"message":"User not exist."}
+		mockMvc.perform(
+					get("/UserException4Demo/1")
+					.contentType(MediaType.APPLICATION_JSON_UTF8)
+				)
+				.andExpect(status().is5xxServerError())
+				.andExpect(jsonPath("$.id").value("1"))
+				;
+		
 		// @formatter:on
 	}
 }
