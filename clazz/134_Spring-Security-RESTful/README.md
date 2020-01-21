@@ -764,9 +764,9 @@ public void whenUpdateFailed() throws Exception {
 
 
 
-### 3-6 RESTful API 异常处理
+#### 3-6 RESTful API 异常处理
 
-#### Spring Boot 中默认的错误处理机制
+##### Spring Boot 中默认的错误处理机制
 
 <span style="color:blue"> **Spring Boot 错误处理类 ： `BasicErrorController` 类中 根据 请求头中是否包含 `text/html` 来决定是返回 HTML 页面 还是 JSON 字符串**。</span>
 
@@ -822,7 +822,7 @@ Q: `${server.error.path:${error.path:/error}}`  怎么理解？默认值是 `/er
 A: SPel ? 待研究。
 
 
-#### 自定义异常处理
+##### 自定义异常处理
 - **针对 浏览器 请求**
 
   创建以 错误码 命名的 html 文件。 如 统一的 404 页面 ： `src/main/resources/error/404.html` 。
@@ -850,15 +850,66 @@ A: SPel ? 待研究。
 
   
 
+#### 3-7 使用切片拦截REST服务
+
+Restful API 的 拦截
+
+ 	1. 过滤器（Filter）
+ 	2. 拦截器 (Interceptor)
+ 	3. 切片 （Aspect）
+
+![1579591729164](/README_images/1579591729164.png)
 
 
 
+##### 使用 过滤器 记录服务处理时间
 
+```java
+package com.yafey.web.filter;
 
+//要使过滤器生效，非常简单，只需将它标记为 Component 。
+@Component  
+public class TimeFilter implements Filter {
 
+	@Override
+	public void init(FilterConfig filterConfig) throws ServletException {
+		System.out.println("timefilter init");
+	}
 
+	@Override
+	public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+			throws IOException, ServletException {
+		System.out.println("timefilter start");
+		long start = System.currentTimeMillis();
+		System.out.println("timefilter request:"+ReflectionToStringBuilder.toString(request, ToStringStyle.MULTI_LINE_STYLE) );
+		
+        chain.doFilter(request, response);
+        
+		System.out.println("timefilter 耗时："+(System.currentTimeMillis()-start));
+		System.out.println("timefilter finished");
+	}
 
+	@Override
+	public void destroy() {
+		System.out.println("timefilter destroy");
+	}
+}
+```
 
+访问任意 API ， 比如： get 方式 <http://localhost:8080/users>
+
+```log
+timefilter start
+timefilter request:org.springframework.security.web.firewall.RequestWrapper@9df44cb[
+  strippedServletPath=/users
+  strippedPathInfo=<null>
+  stripPaths=false
+  request=org.apache.catalina.connector.RequestFacade@6b1636b9
+]
+进入 getUserList 服务
+timefilter 耗时：267
+timefilter finished
+```
 
 
 

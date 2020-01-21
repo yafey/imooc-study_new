@@ -55,6 +55,7 @@ public class UserController {
 				.add(new User()).add(new User()).add(new User())
 				.build()
 				.collect(Collectors.toList());
+		System.out.println("进入 getUserList 服务");
 		// @formatter:on
 		return userList;
 	}
