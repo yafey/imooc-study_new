@@ -850,7 +850,7 @@ A: SPel ? 待研究。
 
   
 
-#### 3-7 使用切片拦截REST服务
+#### 3.7~3.8 拦截 REST 服务
 
 Restful API 的 拦截
 
@@ -862,7 +862,7 @@ Restful API 的 拦截
 
 
 
-##### 使用 过滤器 记录服务处理时间
+##### 3.7.1. 使用 过滤器 记录服务处理时间
 
 ```java
 package com.yafey.web.filter;
@@ -909,6 +909,59 @@ timefilter request:org.springframework.security.web.firewall.RequestWrapper@9df4
 进入 getUserList 服务
 timefilter 耗时：267
 timefilter finished
+```
+
+
+
+##### 3.7.2. 将 第三方的 filter 注册到 Spring Boot
+
+场景：如果第三方的 filter 没有用 @Component 标记，Spring Boot 又没有传统的 web.xml ， 这种情况下，需要 配置一个 Config 类 来实现。
+
+```java
+package com.yafey.web.filter.config;
+
+@Configuration
+public class WebConfig4Filter extends WebMvcConfigurerAdapter {
+	
+	@Bean
+	public FilterRegistrationBean timeFilter() {
+		
+		FilterRegistrationBean registrationBean = new FilterRegistrationBean();		
+		_3rdPartyFilter _3rdPartyFilter = new _3rdPartyFilter();
+		registrationBean.setFilter(_3rdPartyFilter);
+        
+		List<String> urls = new ArrayList<>();
+		urls.add("/*");  // 此处表示 拦截所有的请求。
+		registrationBean.setUrlPatterns(urls);
+		return registrationBean;
+	}
+}
+```
+
+```java
+package com.yafey.web.filter;
+public class _3rdPartyFilter implements Filter {
+	@Override
+	public void init(FilterConfig filterConfig) throws ServletException {
+		System.out.println("3rd party filter init");
+	}
+	@Override
+	public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+			throws IOException, ServletException {
+		System.out.println("3rd party filter doFilter");
+		chain.doFilter(request, response);
+	}
+	@Override
+	public void destroy() {
+		System.out.println("3rd party filter destroy");
+	}
+}
+```
+
+```
+3rd party filter doFilter
+进入 getUserList 服务
+3rd party filter doFilter
 ```
 
 
