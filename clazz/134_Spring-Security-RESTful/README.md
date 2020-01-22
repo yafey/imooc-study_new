@@ -921,7 +921,7 @@ timefilter finished
 package com.yafey.web.filter.config;
 
 @Configuration
-public class WebConfig4Filter extends WebMvcConfigurerAdapter {
+public class WebConfig4Filter {
 	
 	@Bean
 	public FilterRegistrationBean timeFilter() {
@@ -957,7 +957,7 @@ public class _3rdPartyFilter implements Filter {
 	}
 }
 ```
-
+请求 http://localhost:8080/users 
 ```
 3rd party filter doFilter
 进入 getUserList 服务
@@ -966,9 +966,95 @@ public class _3rdPartyFilter implements Filter {
 
 
 
+##### 3.7.3. 使用拦截器
 
+> <span style="color:red"> 使用 filter 只能拿到 request 里面的信息，获取不到 Controller 的信息（Spring MVC 定义的）</span>，<span style="color:blue"> 如果想要 获取 请求被 哪个 Controller 的 哪个 方法 处理的， 可以使用 Spring 定义的 Intercept （拦截器）。</span>
 
+注意： 
 
+> <span style="color:red"> 已经被 ExceptionHandler 处理的异常 在 afterCompletion 方法里 获取不到。</span>
 
+```java
+package com.yafey.web.interceptor;
 
+@Component
+public class TimerInterceptor implements HandlerInterceptor {
+
+	// 每次请求前 调用
+	@Override
+	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+			throws Exception {
+		System.out.println("timerIntercepotr preHandle");
+		
+		HandlerMethod hm = ((HandlerMethod)handler);
+		String controllerName = hm.getBean().getClass().getName();
+		String method = hm.getMethod().getName();
+		System.out.println(String.format("timerIntercepotr,get request process method:[%s] in controller:[%s]", method,controllerName));
+		request.setAttribute("startTime", new Date().getTime());
+		return true;  // 默认 return false , 不会调用 Controller 的方法， 这里可以根据实际情况 进行控制。
+	}
+
+	// 每次请求结束之后调用， 如果请求中抛出异常， 则不会调用。
+	@Override
+	public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler,
+			ModelAndView modelAndView) throws Exception {
+		System.out.println("timerIntercepotr postHandle");
+		Long start = (Long) request.getAttribute("startTime");
+		System.out.println("timerIntercepotr postHandle 耗时："+(new Date().getTime()-start));
+	}
+
+	// 每次请求结束之后， 不管有没有异常都会调用。 注意：如果 exception已经被 ExceptionHandler 处理， 那么 exception 将会是 null。
+	@Override
+	public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex)
+			throws Exception {
+		System.out.println("timerIntercepotr afterCompletion");
+		Long start = (Long) request.getAttribute("startTime");
+		System.out.println("timerIntercepotr afterCompletion 耗时："+(new Date().getTime()-start) );
+		System.out.println("exception:["+ex+"]");
+	}
+}
+```
+
+配置拦截器
+
+```
+package com.yafey.web.interceptor;
+
+@Configuration
+public class WebConfig4Interceptor extends WebMvcConfigurerAdapter {
+	
+	@Autowired
+	private TimerInterceptor timerInterceptor;
+	
+	// 覆盖 WebMvcConfigurerAdapter#addInterceptors 方法， 将 拦截器 set 进去。
+	@Override
+	public void addInterceptors(InterceptorRegistry registry) {
+		registry.addInterceptor(timerInterceptor);
+	}
+}
+```
+
+请求 http://localhost:8080/users 
+
+```
+3rd party filter doFilter
+timerIntercepotr preHandle
+timerIntercepotr,get request process method:[queryList] in controller:[com.yafey.web.controller.UserController]
+进入 getUserList 服务
+timerIntercepotr postHandle
+timerIntercepotr postHandle 耗时：10
+timerIntercepotr afterCompletion
+timerIntercepotr afterCompletion 耗时：10
+exception:[null]
+```
+
+##### 3.7.4. 使用 切片
+
+> <span style="color:red"> 使用 拦截器 ，获取不到 请求传入的参数。</span>（具体代码见：org.springframework.web.servlet.DispatcherServlet.doDispatch(HttpServletRequest, HttpServletResponse) ）
+>
+> L962 : preHandler
+>
+> L967: 处理 request，在这里才会进行 转换， 将请求中的字段 转换成 方法中定义的对象。
+>
+> ![1579671015241](/README_images/1579671015241.png)
 

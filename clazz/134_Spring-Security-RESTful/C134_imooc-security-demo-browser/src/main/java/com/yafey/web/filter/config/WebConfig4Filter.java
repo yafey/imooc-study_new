@@ -6,12 +6,11 @@ import java.util.List;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.yafey.web.filter._3rdPartyFilter;
 
 @Configuration
-public class WebConfig4Filter extends WebMvcConfigurerAdapter {
+public class WebConfig4Filter {
 	
 	@Bean
 	public FilterRegistrationBean timeFilter() {
