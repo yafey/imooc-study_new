@@ -854,11 +854,25 @@ A: SPel ? 待研究。
 
 Restful API 的 拦截
 
- 	1. 过滤器（Filter）
- 	2. 拦截器 (Interceptor)
- 	3. 切片 （Aspect）
+  1. 过滤器（Filter） ：<span style="color:blue">可以拿到原始的 http 对象</span>，<span style="color:red">但是拿不到 处理的 方法的信息</span>。
 
-![1579591729164](/README_images/1579591729164.png)
+  2. 拦截器 (Interceptor) ：<span style="color:blue">即可以拿到原始的 http 对象，也可以拿到 处理的 方法的信息</span>； <span style="color:red">但是拿不到 方法 调用时 传递的 参数</span>。
+
+  3. 切片 （Aspect）：<span style="color:blue">可以拿到 方法调用时传递的参数</span>， <span style="color:red">~~但是拿不到 原始的 http 对象~~</span>。(可以通过 RequestContextHolder 对象 获取 , 代码如下)。
+
+     ```java
+     RequestAttributes ra = RequestContextHolder.getRequestAttributes();
+     ServletRequestAttributes sra = (ServletRequestAttributes)ra;
+     HttpServletRequest = sra.getRequest();
+     ```
+
+     
+
+![1579591729164](README_images/1579591729164.png)
+
+Filter,Interceptor, ControllerAdvice(异常处理)，Aspect , Controller 执行顺序。
+
+![1579679472650](README_images/1579679472650.png)
 
 
 
@@ -1056,5 +1070,72 @@ exception:[null]
 >
 > L967: 处理 request，在这里才会进行 转换， 将请求中的字段 转换成 方法中定义的对象。
 >
-> ![1579671015241](/README_images/1579671015241.png)
+> ![1579671015241](README_images/1579671015241.png)
+
+切片 可以记录 哪个 Controller 的什么方法调用的，以及调用的时候传入的参数。
+
+
+
+
+
+切片就是 AOP (面向切片编程) , Spring 框架的核心功能之一。
+
+<span style="color:blue">**一个类要成为切片，需要声明 2 点：切入点（注解） 和 增强（方法）。** </span>
+
+- 在声明 **切入点** 的时候，其实在声明 2 点： 1. 那些方法上起作用；2，在什么时候起作用。
+- 然后再写一个 **方法** ，里面包含满足条件时，具体执行的业务逻辑。
+
+这样， 在 Spring 容器中， 符合 切入点 声明的 那些方法，在方法执行过程中，根据指定的条件（如 执行前、执行后、抛出异常 等场景）， 调用 切片 增强的 方法。
+
+![1579671622457](README_images/1579671622457.png)
+
+```java
+package com.yafey.web.aspect;
+
+@Aspect
+@Component
+public class TimerAspect {
+
+//	@Before
+//	@After
+//	@AfterThrowing
+//	@Around  // 覆盖了前面 3 种。
+	
+	// 切入点表达式语法 参见 Spring 官网 （Spring Framework --> Reference --> <key words: aspect> ）
+	// https://docs.spring.io/spring/docs/5.2.3.RELEASE/spring-framework-reference/core.html#aop-common-pointcuts
+    @Around("execution(* com.yafey.web.controller..*(..))")
+    public Object handleControllerMethod(ProceedingJoinPoint pjp) throws Throwable {
+    	System.out.println("TimeAspect start");
+
+    	System.out.println(String.format("args: %s", ArrayUtils.toString(pjp.getArgs()) ) );
+
+        long start = System.currentTimeMillis();
+        Object result = pjp.proceed();
+        
+    	System.out.println(String.format("TimeAspect 耗时：{%s} 毫秒", System.currentTimeMillis() - start ) );
+
+        System.out.println("TimeAspect end");
+
+        return result;
+    }
+	
+}
+```
+
+get 访问 http://localhost:8080/user/1
+
+```
+3rd party filter doFilter
+timerIntercepotr preHandle
+timerIntercepotr,get request process method:[getUserDetail] in controller:[com.yafey.web.controller.UserController$$EnhancerBySpringCGLIB$$297874d3]
+TimeAspect start
+args: {1}
+TimeAspect 耗时：{54} 毫秒
+TimeAspect end
+timerIntercepotr postHandle
+timerIntercepotr postHandle 耗时：852
+timerIntercepotr afterCompletion
+timerIntercepotr afterCompletion 耗时：853
+exception:[null]
+```
 
