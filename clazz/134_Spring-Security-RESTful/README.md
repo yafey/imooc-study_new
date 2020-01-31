@@ -1180,7 +1180,7 @@ public class FileController {
         return new FileInfo(localFile.getPath());
     }
     
-        @GetMapping("{id}")
+    @GetMapping("{id}")
     public void download(@PathVariable String id, HttpServletRequest request, HttpServletResponse response) {
 
         String filePath = String.format("%s%s.%s", FOLDER, id, "txt");
@@ -1211,3 +1211,51 @@ file name:file,origin name:test.txt,size:12
 
 
 文件下载  访问 ： http://localhost:8080/file/1579681740340
+
+#### 3.10. 使用多线程提高REST服务性能 (异步处理 REST 服务)
+
+- 使用 Runnable 异步处理 REST 服务
+- 使用 DeferredResult 异步处理 REST 服务
+- 异步处理配置
+
+
+
+像 Tomcat 这种中间件 能管理的 **主线程** 数是有限制的，再有请求进来，Tomcat 就不能处理了。
+
+![1580141127157](README_images/1580141127157.png)
+
+
+
+```java
+package com.yafey.web.async;
+
+@RestController
+@Slf4j
+public class AsyncController {
+    @RequestMapping("/order")
+    public Callable<String> order() throws InterruptedException {
+        Thread.currentThread().setName("主线程");
+    	log.info("主线程开始");      
+        Callable<String> result = () -> {
+        	Thread.currentThread().setName("副线程");
+        	log.info("副线程开始");
+            Thread.sleep(1000);
+            log.info("副线程返回");
+            return null;
+        }
+        log.info("主线程返回");
+        return result;
+    }
+}
+```
+
+主线程很快返回， 副线程 1 秒后返回，对于前端来说，是不是异步的，无感知。
+
+```
+timerIntercepotr,get request process method:[order] in controller:[com.yafey.web.async.AsyncController]
+2020-01-31 16:31:37.574  INFO 2324 --- [            主线程] com.yafey.web.async.AsyncController      : 主线程开始
+2020-01-31 16:31:37.575  INFO 2324 --- [            主线程] com.yafey.web.async.AsyncController      : 主线程返回
+2020-01-31 16:31:37.597  INFO 2324 --- [            副线程] com.yafey.web.async.AsyncController      : 副线程开始
+2020-01-31 16:31:38.597  INFO 2324 --- [            副线程] com.yafey.web.async.AsyncController      : 副线程返回
+```
+
