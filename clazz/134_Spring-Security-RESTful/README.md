@@ -1447,3 +1447,60 @@ public class WebConfig4AsynchInterceptor extends WebMvcConfigurerAdapter {
 }
 ```
 
+
+
+
+
+## 3.2. 与前端并行工作
+
+* 使用 Swagger 自动生成 html 文档
+* 使用 WireMock 快速伪造 RESTful 服务
+
+
+
+### 3.2.1(3-11) 使用 Swagger 自动生成文档
+
+#### 3.2.1.1. Swagger 配置三步曲
+
+1. 引包
+
+   ```xml
+   <!-- swagger -->
+   <!-- swagger 核心包，主要功能是：扫描代码，生成文档 -->
+   <dependency>
+   	<groupId>io.springfox</groupId>
+   	<artifactId>springfox-swagger2</artifactId>
+   	<version>2.8.0</version>
+   </dependency>
+   <dependency>
+   	<groupId>io.springfox</groupId>
+   	<artifactId>springfox-swagger-ui</artifactId>
+   	<version>2.8.0</version>
+   </dependency>
+   ```
+
+   
+
+2. 加注解 `@EnableSwagger2`
+
+   ```java
+   package com.yafey;
+   
+   @SpringBootApplication
+   @RestController
+   @EnableSwagger2
+   public class DemoBrowserApplication {
+   
+   	public static void main(String[] args) {
+   		SpringApplication.run(DemoBrowserApplication.class, args);
+   	}
+   }
+   ```
+
+   
+
+3. 访问 http://localhost:8080/swagger-ui.html
+
+
+
+![1580721974082](README_images/1580721974082.png)

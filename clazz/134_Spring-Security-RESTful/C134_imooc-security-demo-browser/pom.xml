@@ -23,6 +23,19 @@
 			<artifactId>spring-boot-starter-aop</artifactId>
 			<version>2.1.6.RELEASE</version>
 		</dependency>
+
+		<!-- swagger -->
+		<!-- swagger 核心包，主要功能是：扫描代码，生成文档 -->
+		<dependency>
+			<groupId>io.springfox</groupId>
+			<artifactId>springfox-swagger2</artifactId>
+			<version>2.8.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.springfox</groupId>
+			<artifactId>springfox-swagger-ui</artifactId>
+			<version>2.8.0</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
