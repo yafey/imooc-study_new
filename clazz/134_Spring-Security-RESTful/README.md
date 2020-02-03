@@ -1220,6 +1220,8 @@ file name:file,origin name:test.txt,size:12
 
 
 
+##### 3.10.1. 使用 Runnable 异步处理 REST 服务
+
 像 Tomcat 这种中间件 能管理的 **主线程** 数是有限制的，再有请求进来，Tomcat 就不能处理了。
 
 ![1580141127157](README_images/1580141127157.png)
@@ -1249,13 +1251,171 @@ public class AsyncController {
 }
 ```
 
+访问 ： http://localhost:8080/order .
+
 主线程很快返回， 副线程 1 秒后返回，对于前端来说，是不是异步的，无感知。
 
 ```
 timerIntercepotr,get request process method:[order] in controller:[com.yafey.web.async.AsyncController]
-2020-01-31 16:31:37.574  INFO 2324 --- [            主线程] com.yafey.web.async.AsyncController      : 主线程开始
-2020-01-31 16:31:37.575  INFO 2324 --- [            主线程] com.yafey.web.async.AsyncController      : 主线程返回
-2020-01-31 16:31:37.597  INFO 2324 --- [            副线程] com.yafey.web.async.AsyncController      : 副线程开始
-2020-01-31 16:31:38.597  INFO 2324 --- [            副线程] com.yafey.web.async.AsyncController      : 副线程返回
+16:31:37.574  INFO 2324 --- [主线程] c.y.w.a.AsyncController: 主线程开始
+16:31:37.575  INFO 2324 --- [主线程] c.y.w.a.AsyncController: 主线程返回
+16:31:37.597  INFO 2324 --- [副线程] c.y.w.a.AsyncController: 副线程开始
+16:31:38.597  INFO 2324 --- [副线程] c.y.w.a.AsyncController: 副线程返回
+```
+
+
+
+##### 3.10.2. 使用 DeferredResult 异步处理 REST 服务
+
+线程1 和线程2 的代码是隔离的，Runable 在这种场景下不适用。以下单为例。
+
+1. 消息队列 和 应用2 ，用 MockQueue 对象模拟，收到下单请求后， 延时 1s 后在消息队列中放入 订单完成 消息。
+2. 线程1 表示 Controller.
+3. 线程2 是一个 监听器（Listener)， 监听 消息队列中的 订单完成 消息。
+4. DeferredResultHolder ， 用于存放 线程 1 生成的 DeferredResult ， 以便在 线程2 中使用该对象 返回 请求完成状态。
+
+
+
+![1580460214637](README_images/1580460214637.png)
+
+
+
+Controller
+
+```java
+package com.yafey.web.async2;
+
+@RestController
+@Slf4j
+public class DeferredResultController {
+
+    @Autowired
+    private MockQueue mockQueue;
+
+    @Autowired
+    private DeferredResultHolder deferredResultHolder;
+
+    @RequestMapping("/order2")
+    public DeferredResult<String> order2() throws Exception {
+        log.info("主线程开始");
+        String orderNumber = RandomStringUtils.randomNumeric(8);
+        mockQueue.setPlaceOrder(orderNumber);  // 模拟发送下单请求 到 消息队列中。
+        DeferredResult<String> result = new DeferredResult<>();
+        deferredResultHolder.getMap().put(orderNumber, result);
+        log.info("主线程返回");
+        return result;
+    }
+}
+```
+
+MockQueue
+
+```java
+package com.yafey.web.async2;
+
+@Component
+@Data
+@Slf4j
+// 模拟消息队列
+public class MockQueue {
+	/**
+	 * 模拟 下单 消息
+	 */
+	private String placeOrder;
+	/**
+	 * 模拟订单完成消息
+	 */
+	private String completedOrder;
+	
+	public void setPlaceOrder(String placeOrder) throws Exception {
+		// 单独开一个线程来模拟 app2 处理 下单逻辑。
+		new Thread(() -> {
+            log.info("接到下单请求,{}",placeOrder);
+            try {
+        		Thread.sleep(1000); // 延时 1s 模拟 处理下单请求
+            } catch (InterruptedException e) {
+            	log.error(e.getMessage(), e);
+            }
+            this.completedOrder = placeOrder; // 模拟订单完成 消息，注意这里是修改 completedOrder 的值。 
+            log.info("下单请求处理完毕,{}", completedOrder);
+        }).start();
+	}
+}
+```
+
+DeferredResultHolder
+
+```java
+package com.yafey.web.async2;
+
+@Data
+@Component
+public class DeferredResultHolder {
+	// 以订单号为 key ，DeferredResult 对象为 值。
+	private Map<String, DeferredResult<String>> map = new HashMap<>();
+}
+```
+
+QueueListener
+
+```java
+package com.yafey.web.async2;
+
+/**
+ * 作用： 监听 模拟消息队列中 completedOrder 的值，然后通过 DeferredResultHolder， 返回一个 DeferredResult 对象 给前端。 
+ * @author YaFey
+ *
+ */
+// ContextRefreshedEvent ： Spring 容器初始化完毕 之后的事件。
+@Component
+@Slf4j
+public class QueueListener implements ApplicationListener<ContextRefreshedEvent> {
+
+    @Autowired
+    private MockQueue mockQueue;
+ 
+    @Autowired
+    private DeferredResultHolder deferredResultHolder;
+
+    @Override
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+    	// 无限循环，使用一个新的线程，以防线程阻塞。
+        new Thread(() -> {
+            while (true) {
+                if (StringUtils.isNotBlank(mockQueue.getCompletedOrder())) {
+
+                    String orderNumber = mockQueue.getCompletedOrder();
+                    log.info("返回订单处理结果: {}", orderNumber);
+                    deferredResultHolder.getMap().get(orderNumber).setResult("place order success");
+                    mockQueue.setCompletedOrder(null); // 将模拟队列中的 完成的消息 移除。
+                } else {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        log.error(e.getMessage(), e);
+                    }
+                }
+            }
+        }).start();
+    }
+}
+```
+
+访问 ： http://localhost:8080/order2 .
+
+涉及到 3 个 线程：
+
+1. 主线程很快返回；
+2. Thread-11 线程 为模拟 app2 处理下单请求；
+3. Thread-8 监听到 处理完成的消息后， 及时将 结果返回给前端。
+
+对于前端来说，以上过程无感知。
+
+```
+16:19:23.694  INFO 9108 --- [主线程] c.y.w.a2.DeferredResultController: 主线程开始
+16:19:23.707  INFO 9108 --- [主线程] c.y.w.a2.DeferredResultController: 主线程返回
+16:19:23.729  INFO 9108 --- [Thread-11] c.y.w.a2.MockQueue    : 接到下单请求,59449702
+16:19:24.737  INFO 9108 --- [Thread-11] c.y.w.a2.MockQueue    : 下单请求处理完毕,59449702
+16:19:24.743  INFO 9108 --- [ Thread-8] c.y.w.a2.QueueListener: 返回订单处理结果: 59449702
 ```
 
