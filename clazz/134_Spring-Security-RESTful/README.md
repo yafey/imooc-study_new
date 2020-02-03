@@ -1216,7 +1216,7 @@ file name:file,origin name:test.txt,size:12
 
 - 使用 Runnable 异步处理 REST 服务
 - 使用 DeferredResult 异步处理 REST 服务
-- 异步处理配置
+- Spring 针对 异步处理 的配置 （异步处理的拦截器）
 
 
 
@@ -1417,5 +1417,33 @@ public class QueueListener implements ApplicationListener<ContextRefreshedEvent>
 16:19:23.729  INFO 9108 --- [Thread-11] c.y.w.a2.MockQueue    : 接到下单请求,59449702
 16:19:24.737  INFO 9108 --- [Thread-11] c.y.w.a2.MockQueue    : 下单请求处理完毕,59449702
 16:19:24.743  INFO 9108 --- [ Thread-8] c.y.w.a2.QueueListener: 返回订单处理结果: 59449702
+```
+
+
+
+##### 3.10.3. Spring 针对 异步处理 的配置 （异步处理的拦截器）
+
+和之前的 WebConfig4Interceptor 类似，<span style="color:red">异步请求需要用 特别的拦截器 才能拦截</span>。
+
+Spring 默认使用 SimpleAsyncTaskExecutor , <span style="color:red">**这个“异步线程池” 不会重用 线程， 生产上建议使用自定义的线程池**</span>。
+
+```java
+package com.yafey.web.async2.config;
+
+@Configuration
+public class WebConfig4AsynchInterceptor extends WebMvcConfigurerAdapter {
+	
+	@Override
+	public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
+		// 注册 CallableProcessingInterceptor
+//		configurer.registerCallableInterceptors(new CallableProcessingInterceptor[] {});
+		// 注册 DeferredResultProcessingInterceptor
+//		configurer.registerDeferredResultInterceptors(new DeferredResultProcessingInterceptor[] {});
+		
+		// Spring 默认使用 SimpleAsyncTaskExecutor , 这个“异步线程池” 不会重用 线程， 生产上建议使用自定义的线程池。
+		// By default a SimpleAsyncTaskExecutor instance is used, and it'shighly recommended to change that default in production since the simpleexecutor does not re-use threads.
+//		configurer.setTaskExecutor(taskExecutor);
+	}
+}
 ```
 
