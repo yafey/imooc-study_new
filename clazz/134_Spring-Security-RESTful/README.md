@@ -1504,3 +1504,15 @@ public class WebConfig4AsynchInterceptor extends WebMvcConfigurerAdapter {
 
 
 ![1580721974082](README_images/1580721974082.png)
+
+
+
+#### 3.2.1.2. Swagger 优化配置
+
+- 使用 `@ApiOperation(value = "用户查询服务")` 添加 服务接口 描述。
+- 使用 `@ApiParam("用户ID")` 添加 单个字段 参数 ( 即被 `@PathVariable` 注解标注的参数) 的描述。
+- 如果参数是一个对象，在对象的字段上使用 `@ApiModelProperty(value="用户年龄起始值")` 来添加 描述。
+
+
+
+![1580890260189](README_images/1580890260189.png)

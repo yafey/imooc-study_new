@@ -26,6 +26,8 @@ import com.yafey.dto.User;
 import com.yafey.dto.User2;
 import com.yafey.dto.UserQueryCondition;
 
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
@@ -67,6 +69,7 @@ public class UserController {
 	}
 
 	@GetMapping("/userCondition")
+	@ApiOperation(value = "用户查询服务")
 	public UserQueryCondition queryList(UserQueryCondition condition,
 			@PageableDefault(page = 2, size = 17, sort = "username,asc") Pageable pageable) {
 		
@@ -79,7 +82,7 @@ public class UserController {
 	@JsonView(User.UserDetailView.class)
 	// URL 中使用 正则表达式，限制 用户 id 只能是 数字，
 	@GetMapping("/user/{id:\\d+}")
-	public User getUserDetail(@PathVariable(value = "id", required = true) Integer idxxx) {
+	public User getUserDetail(@ApiParam("用户ID") @PathVariable(value = "id", required = true) Integer idxxx) {
 		return new User().setId(idxxx);
 	}
 
