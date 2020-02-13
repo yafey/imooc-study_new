@@ -1089,6 +1089,13 @@ exception:[null]
 
 ![1579671622457](README_images/1579671622457.png)
 
+切入点表达式语法 参见 Spring 官网 （`Spring Framework --> Reference --> <key words: aspect>` ）
+https://docs.spring.io/spring/docs/5.2.3.RELEASE/spring-framework-reference/core.html#aop-common-pointcuts
+
+![image-20200213211840000](README_images/image-20200213211840000.png)
+
+
+
 ```java
 package com.yafey.web.aspect;
 
