@@ -1516,3 +1516,90 @@ public class WebConfig4AsynchInterceptor extends WebMvcConfigurerAdapter {
 
 
 ![1580890260189](README_images/1580890260189.png)
+
+
+
+### 3.2.2.(3-12) 使用 WireMock 快速伪造 RESTful 服务
+
+使用 WireMock 提供统一的 伪造的 Restful 接口，减少重复工作。
+
+![1581399150369](README_images/1581399150369.png)
+
+
+
+1. 下载 WireMock jar包 : http://wiremock.org/docs/running-standalone/
+	
+	![1580892548743](README_images/1580892548743.png)
+
+2. 启动 WireMock ：`java -jar wiremock-standalone-2.26.0.jar --port 8062`
+
+	![image-20200211225918291](/README_images/image-20200211225918291.png)
+
+3. 添加 WireMock 依赖
+
+   ```xml
+   <!-- wiremock -->
+   <dependency>
+   	<groupId>com.github.tomakehurst</groupId>
+   	<artifactId>wiremock</artifactId>
+   </dependency>
+   
+   <dependency>
+   	<artifactId>httpclient</artifactId>
+   	<groupId>org.apache.httpcomponents</groupId>
+   </dependency>
+   ```
+
+   
+
+4. 配置 WireMock 服务器（伪造 测试桩）
+
+   > 如果 `org.apache.commons.io.FileUtils` 找不到， 引入下面的依赖
+   >
+   > ```xml
+   > <dependency>
+   > 	<groupId>commons-fileupload</groupId>
+   > 	<artifactId>commons-fileupload</artifactId>
+   > </dependency>
+   > ```
+
+   ```java
+   package com.yafey.wiremock;
+   
+   public class WireMockServer {
+   
+       public static void main(String[] args) throws IOException {
+           // 绑定本地服务器
+           configureFor(8062);
+           // 清理配置
+           removeAllMappings();
+           
+           // 伪造一个 测试桩 （即 服务器如何处理请求）
+           stubFor(get(urlPathEqualTo("/order/1"))
+                   .willReturn(aResponse()
+                           .withBody("{\"id\":\"mockid_1\"}")
+                           .withStatus(200))
+           );
+           
+           mock("/order/2", "mock/response/order_2.txt");
+           mock("/order/3", "mock/response/order_3.txt");
+       }
+   
+       private static void mock(String url, String file) throws IOException {
+           ClassPathResource order1 = new ClassPathResource(file);
+           String order1Content = FileUtils.readFileToString(order1.getFile(), Charset.defaultCharset());
+           
+           stubFor(get(urlPathEqualTo(url))
+                   .willReturn(aResponse()
+                           .withBody(order1Content)
+                           .withStatus(200))
+           );
+       }
+   }
+   ```
+
+   
+
+4. 访问 Restful 接口
+
+![image-20200211225557093](README_images/image-20200211225557093.png)
