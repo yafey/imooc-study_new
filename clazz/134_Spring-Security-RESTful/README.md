@@ -3,6 +3,7 @@ typora-root-url: ./
 typora-copy-images-to: ./README_images/
 ---
 
+[Spring Security 常见用法(第4章) 及 授权机制(第7章)](4_and_7_SpringSecurity.md)
 
 # 目录
 

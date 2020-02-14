@@ -9,6 +9,6 @@ spring:
   session:
     store-type: none
 # 禁用 身份认证
-security:
-  basic:
-    enabled: false
+#security:
+#  basic:
+#    enabled: false
