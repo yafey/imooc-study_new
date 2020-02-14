@@ -33,3 +33,38 @@ typora-copy-images-to: ./README_images/4_and_7
 
 ![image-20200214224714465](README_images/4_and_7/image-20200214224714465.png)
 
+
+
+#### 4.2.3. 修改成 form 校验
+
+在 C134_imooc-security-browser 中 新建 BrowserSecurityConfig 配置类。
+
+<span style="color:green">**如果将 formLogin 改成 httpBasic 就是 Security 的 默认实现。**</span>
+
+```java
+package com.yafey.security.browser;
+
+@Configuration
+public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+		http.formLogin()  // 认证方式
+//		http.httpBasic()
+			// 授权 , 以下表示 任何请求都需要 校验
+			.and()
+			.authorizeRequests()
+			.anyRequest()
+			.authenticated();
+	}
+}
+```
+
+
+
+启动 C134_imooc-security-demo-browser ， 访问 任意 服务，如 http://localhost:8080/ , **将会先跳转到 http://localhost:8080/login 进行校验，校验通过后再跳转到 原先的地址。**
+
+
+
+![image-20200214232433403](README_images/4_and_7/image-20200214232433403.png)
+
+![security-form-redirect.gif](README_images/4_and_7/security-form-redirect.gif)
