@@ -17,8 +17,12 @@ public class MyUserDetailsService implements UserDetailsService {
         //根据用户名查找用户信息
         log.info("用户是:" + username);
         //参数：用户名，密码，权限集合
+//        User user = new User(username, "123qwe",
+//        		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
         User user = new User(username, "123qwe",
+        		true,true,true,false,//该账户被锁定
         		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
         return user;
     }
 }
+

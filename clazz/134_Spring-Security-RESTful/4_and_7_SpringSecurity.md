@@ -265,7 +265,7 @@ public String hello() {
 
 
 
-### 4.3. 自定义 用户认证逻辑
+### 4.3. 自定义 用户 认证、校验逻辑及密码加密解密
 
 > 默认的 用户名只能是 `user` ， 密码 是 每次启动时 自动生成，这不能符合大部分的应用场景。
 
@@ -348,12 +348,55 @@ public class MyUserDetailsService implements UserDetailsService {
 
 
 
+####  4.3.3. 处理用户校验逻辑
 
+在用户校验逻辑中，分为两部分，第一个是用户名的密码校验逻辑；第二是其他的一些校验（用户是否被冻结、是否过期等）。
+我们先来看 `loadUserByUsername`方法返回的 `UserDetails` 接口的源代码: 
 
+```java
+package org.springframework.security.core.userdetails;
+public interface UserDetails extends Serializable {
+	
+	Collection<? extends GrantedAuthority> getAuthorities();//获取用户权限信息
+	String getPassword();//获取密码
+	String getUsername();//获取用户名
 
+    
+    // 下面四个返回 布尔值的 方法 就是用来让我们自己去执行校验逻辑的。我们需要将 我们自己的 校验的 结果 通过这些方法的 实现 返回回去。
+	boolean isAccountNonExpired();//判断账户是否过期,返回true表示认证成功，返回false代表过期了。如果在系统中没有关于这个的逻辑，可以永远返回true
+    boolean isCredentialsNonExpired();//判断密码是否过期,因为有些安全级别比较高的网站可能会要求用户三十天或固定时间去修改密码。这个方法可以告诉Spring Security密码是否过期了。
+    
+    // isAccountNonLocked和isEnabled的区别是isAccountNonLocked可以恢复使用的，但是isEnabled被注销的用户一般是不能被恢复的。
+	boolean isAccountNonLocked();//判断账户是否被锁定（冻结）
+	boolean isEnabled();//账户是否被删除（注销）
+}
+```
 
+在 `MyUserDetailsService` 这个类中重写的那个方法里面我们可以自定义哪些属性是false，一旦有一个设置为false，那么我的校验逻辑是不能被通过的。比如我在账户是否锁定的字段设置为false，则会有相应的错误处理
 
+```java
+package com.yafey.security.browser;
 
+@Component
+@Slf4j
+public class MyUserDetailsService implements UserDetailsService {
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        //根据用户名查找用户信息
+        log.info("用户是:" + username);
+        //参数：用户名，密码，权限集合
+//        User user = new User(username, "123qwe",
+//        		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
+        User user = new User(username, "123qwe",
+        		true,true,true,false,//该账户被锁定
+        		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
+        return user;
+    }
+}
+```
 
+然后在浏览器中输入资源地址，即使输入正确的用户名和密码，也会给出相应的提示
+
+![image-20200222105955458](README_images/4_and_7/image-20200222105955458.png)
 
 
