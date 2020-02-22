@@ -399,4 +399,130 @@ public class MyUserDetailsService implements UserDetailsService {
 
 ![image-20200222105955458](README_images/4_and_7/image-20200222105955458.png)
 
+#### 4.3.4. 处理密码加密逻辑
 
+在我们的系统应用中，我们不会将用户的明文写入到数据库中，也就是说从数据库中取出来的密码应该是已经加密过的一串字符串，在 Spring Security 中处理加密解密的是一个**`org.springframework.security.crypto.password.PasswordEncoder`**（<span style="color:red">**注意：是`crypto` 包**</span>）。
+ 在这个接口中有两个方法：
+
+```java
+package org.springframework.security.crypto.password;
+public interface PasswordEncoder {
+    /*编码*/
+    String encode(CharSequence rawPassword); // 加密方法，这个方法应该是插入数据库之前去调用的方法。
+    /*匹配*/
+    boolean matches(CharSequence rawPassword, String encodedPassword); //这个方法是Spring Security 去调用的，在拿到 UserDetails 对象之后，会根据 UserDetails 中的 password 跟用户在登录请求中输入的密码去进行匹配，如果匹配上了就会返回true。
+}
+```
+
+spring security中密码相关的验证工作由实现`PasswordEncoder`的类完成,相关的继承关系如下
+
+![image-20200222115531155](/README_images/4_and_7/image-20200222115531155.png)
+
+
+
+> ##### Spring Security 使用 `crypto` 包中的 `PasswordEncoder` 的说明：
+>
+> Spring Security 发展过程中有两个版本的 `PasswordEncoder`，分别是~~`org.springframework.security.authentication.encoding`~~（已废弃） 和`org.springframework.security.crypto.password`，现在使用的是后者，前者已经弃用。
+>
+> 在`Spring Security`中，已经对`PasswordEncoder`有了很多实现，包括`md5`加密、`SHA-256`加密等等，一般情况下我们只要直接拿来用就可以了。
+>
+> 查看类`DaoAuthenticationProvider`的`setPasswordEncoder` 方法上的注释可以看到，<span style="color:red">**推荐 使用org.springframework.security.crypto.password的实现类去完成密码的编码和匹配工作。**</span>
+>
+> 
+>
+> 更多关于 PasswordEncoder 参考：[Spring Security中的密码加密](PasswordEncoder_in_SpringSecurity.md)
+
+
+
+密码加密的配置：
+
+1. 注册一种 PasswordEncoder 的实现
+
+   ```java
+   package com.yafey.security.browser;
+   @Configuration
+   public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+       @Bean
+       public PasswordEncoder passwordEncoder() {
+           return new BCryptPasswordEncoder();
+       }
+       ... 其他代码...
+   }
+   ```
+
+   
+
+2. 使用 注册的 PasswordEncoder
+
+   ```java
+   package com.yafey.security.browser;
+   @Component
+   @Slf4j
+   public class MyUserDetailsService implements UserDetailsService {
+   	@Autowired // 注入 注册的 PasswordEncoder
+   	private PasswordEncoder passwordEncoder;
+       
+       @Override
+       public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+           //根据用户名查找用户信息
+           log.info("用户是:" + username);
+           String password=passwordEncoder.encode("123qwe"); // 随机加盐加密， 每次的密码都不一样。
+           log.info("数据库密码是：{}",password);
+           //参数：用户名，密码，权限集合
+           User user = new User(username, password,
+           		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
+           return user;
+       }
+   }
+   ```
+
+   
+
+
+控制登陆 2 次可以看到 每次的密码都是不一样的。
+
+```
+用户是:123qwe
+数据库密码是：$2a$10$yvN/gU6hFkh1LEOPRhlcceRteKFGsSAyDG2C5ur7FX0Feam5ZkuoS
+
+用户是:123qwe
+数据库密码是：$2a$10$8ao06G1sQ.foCHVldK2z6O.PPkg39JU0zLGFT345x/rvXHqyQb1xi
+```
+
+
+
+> 或者可以使用下面的配置方式 , 未验证。
+>
+> ```java
+> @Configuration
+> @EnableWebSecurity
+> public class SecurityConfig extends WebSecurityConfigurerAdapter {
+>     @Autowired
+>     private UserDetailsService myUserDetailsService;
+>     /**
+>     *注册一种PasswordEncoder实现
+>     */
+>     @Bean
+>     public PasswordEncoder passwordEncoder() {
+>         return new BCryptPasswordEncoder();
+>     }
+>     @Override
+>     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+>         auth.userDetailsService(myUserDetailsService)
+>         /**
+>         *使用我们注册的passwordencoder
+>         */
+>                 .passwordEncoder(passwordEncoder());
+>     }
+>     @Override
+>     protected void configure(HttpSecurity http) throws Exception {
+>         http.formLogin()
+>                 .and()
+>                 .authorizeRequests()
+>                 .anyRequest()
+>                 .authenticated();
+>     }
+> }
+> ```
+>
+> 
