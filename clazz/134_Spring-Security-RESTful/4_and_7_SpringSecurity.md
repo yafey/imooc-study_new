@@ -526,3 +526,92 @@ spring security中密码相关的验证工作由实现`PasswordEncoder`的类完
 > ```
 >
 > 
+
+
+
+### 4.4. 个性化用户认证流程
+
+> 整理自 ： https://www.jianshu.com/p/2fcec5a67d73
+
+- 自定义登陆页面
+- 自定义登陆成功处理
+- 自定义登陆失败处理
+
+
+
+#### 4.4.1. 自定义登陆页面
+
+我们不能每次都去使用SpringSecurity默认的很简单的登录页面样式去进行登录，需要我们去自定义自己的登录页面的话，我们怎么实现呢？
+
+- 在 BrowserSecurityConfig 类中的configure方法中，我在http.formLogin()的后面去添加一行代码“.loginPage(“url”)”，那么在用户访问页面的时候就会去根据配置的这个url去访问相对应的自定义登录页面。
+
+
+1. 新建页面：在`src->main->resources->resources`文件夹下创建文件 `self-login.html` 。
+
+   ```html
+   <!DOCTYPE html>
+   <html lang="en">
+   <head>
+   <meta charset="UTF-8">
+   <title>登录</title>
+   </head>
+   <body>
+   	<h1>标准登录页面</h1>
+   	<h3>表单登录</h3>
+   	<form action="/authentication/form" method="post">
+   		<table>
+   			<tr>
+   				<td>用户名：</td>
+   				<td><input type="text" name="username" /></td>
+   			</tr>
+   			<tr>
+   				<td>密码：</td>
+   				<td><input type="password" name="password" /></td>
+   			</tr>
+   			<tr>
+   				<td colspan="2"><button type="submit">登录</button></td>
+   			</tr>
+   		</table>
+   	</form>
+   </body>
+   </html>
+   ```
+
+2. 自定义配置
+
+   额外地添加了两行代码，一个是指定了登录的页面，另一个是对于"`/self-login.html`"这个页面，我们必须将它放行，不能让它去进行资源权限的校验，否则会发生“重定向次数过多”（死循环）。
+
+   `csrf().disable();`  是跨站请求伪造的安全机制。SpringSecurity默认地会有csrf跨站请求伪造防护的机制。因为是从一个html，进行post去提交给服务器的，涉及到跨站请求。
+
+   ```java
+   package com.yafey.security.browser;
+   @Configuration
+   public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+   
+       @Bean
+       public PasswordEncoder passwordEncoder() {
+           return new BCryptPasswordEncoder();
+       }
+       
+   	@Override
+   	protected void configure(HttpSecurity http) throws Exception {
+   		http.formLogin()  // 认证方式
+   			.loginPage("/self-login.html") // 自定义 登陆页面
+   	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+   //		http.httpBasic()
+   	         // 授权 , 以下表示 任何请求都需要 校验
+   	         .and()
+   	         .authorizeRequests()//对请求进行授权
+   	         .antMatchers("/self-login.html").permitAll() //登陆页面不需要校验
+   	         .anyRequest()//任何请求
+   	         .authenticated()//都需要身份认证
+   	         .and()
+   	         .csrf().disable() // 关闭 跨站请求伪造 防护。
+   	         ;  
+   	}
+   }
+   ```
+
+   
+
+
