@@ -416,7 +416,7 @@ public interface PasswordEncoder {
 
 spring security中密码相关的验证工作由实现`PasswordEncoder`的类完成,相关的继承关系如下
 
-![image-20200222115531155](/README_images/4_and_7/image-20200222115531155.png)
+![image-20200222115531155](README_images/4_and_7/image-20200222115531155.png)
 
 
 
@@ -614,4 +614,165 @@ spring security中密码相关的验证工作由实现`PasswordEncoder`的类完
 
    
 
+#### 4.4.2. 自定义登录改进
 
+虽然可以用一个自定义的 HTML 页面来完成表单登录，但是现在出现了两个问题：
+
+- 在起始的时候发送的是一个 Rest 服务的请求，但是在跳转控制上返回去的是一个 HTML，这种方式是不合理的。Rest 服务应该返回的是状态码和 JSON 的信息。我们需要做的是 **如果是 HTML 请求就跳到登录页上，如果不是就返回 JSON 数据**。
+- 我写了一个标准的登录页面，但是我希望能提供一个可重用的安全模块（即有多个项目都会使用这个安全模块，但是这些项目不可能只用这一个简单样式的登录页面）。如何能让这些项目使用自己自定义的登录页面？如果不使用自己定义的登录页面，才会使用我自己写的这个简单样式的登录页面。
+
+基于以上问题，我来对这个安全模块进行改进：
+
+##### 1、处理不同类型的请求
+
+先来看看整体的流程图
+
+![image-20200222170930859](README_images/4_and_7/image-20200222170930859.png)
+
+
+
+###### <1> 写自定义的Controller
+
+在写这个Controller时，我们需要知道，对于html请求，我们不可能永远跳转到一个死的登录页面上去，我需要提供一个能力，去读取配置文件实现活的返回页面。
+在这个方法上，我返回的是一个http的状态码。
+
+```java
+package com.yafey.security.browser;
+@RestController
+@Slf4j
+public class BrowserSecurityController {
+	private RequestCache requestCache = new HttpSessionRequestCache(); // 将请求缓存到 session 里面
+	private RedirectStrategy redirectStrategy = new DefaultRedirectStrategy(); // Spring redirect 的 工具类
+	@Autowired
+	private SecurityProperties securityProperties;
+
+	/**
+	 * 当需要身份认证时，跳转到这里
+	 * 
+	 * @param request
+	 * @param response
+	 * @return
+	 * @throws IOException
+	 */
+	@RequestMapping("/authentication/require")
+	@ResponseStatus(code = HttpStatus.UNAUTHORIZED)
+	public SimpleResponse requireAuthentication(HttpServletRequest request, HttpServletResponse response)
+			throws IOException {
+
+		SavedRequest savedRequest = requestCache.getRequest(request, response);
+
+		if (savedRequest != null) {
+			String targetUrl = savedRequest.getRedirectUrl();
+			log.info("引发跳转的请求是:" + targetUrl);
+	        //判断引发跳转的是html 还是 不是html
+			if (StringUtils.endsWithIgnoreCase(targetUrl, ".html")) {
+				redirectStrategy.sendRedirect(request, response
+						, securityProperties.getBrowser().getLoginPage()  // 可以使用自定义的 login 页面，或者使用默认的页面
+						);
+			}
+		}
+		return new SimpleResponse("访问的服务需要身份认证，请引导用户到登录页");
+	}
+}
+```
+
+###### <2>定义返回数据类型
+
+这个方法应该返回的是一个自定义的类，里面去返回各种各样的属性，因此我来创建一个返回类SimpleResponse ，里面只有一个Object类型的变量。
+
+```java
+package com.yafey.security.browser.support;
+@Data
+@AllArgsConstructor
+public class SimpleResponse {
+	private Object content;
+}
+```
+
+###### <3>将页面配置写活
+
+返回的数据类型定义完了，就需要去将配置的自定义页面去写活，在这里我们使用 demo 项目去引用 browser 项目，在 demo 的配置文件中 新增配置
+
+```yaml
+yafey:
+  security:
+    browser:
+      loginPage: /demo-login.html
+```
+
+我希望如果 demo 项目做了这个页面配置就跳转到 demo 配置的自定义页面，如果没有进行配置则跳转到browser 项目定义的登录页面。
+为了实现这个逻辑，我需要去将这些配置进行封装，将它们封装到一个类里面中去。
+
+![image-20200222231657493](README_images/4_and_7/image-20200222231657493.png)
+
+这个图就是对整个项目配置文件的封装，我会去定义一个 SecurityProperties 类，然后这个类中又分为几个子类（根据配置项的不同去划分）。
+ 代码我写在了 security-core 项目中
+
+![image-20200223000920709](README_images/4_and_7/image-20200223000920709.png)
+
+因为系统的配置 无论 是浏览器模块 还是app模块 中都会用到。
+
+先去定义 BrowserProperties 类
+
+```java
+package com.yafey.security.core.properties;
+import lombok.Data;
+@Data
+public class BrowserProperties {
+	private String loginPage = "/self-login.html";
+}
+```
+
+然后去定义 SecurityProperties 类
+
+```java
+package com.yafey.security.core.properties;
+@Data
+@ConfigurationProperties(prefix = "yafey.security")
+public class SecurityProperties {
+	private BrowserProperties browser = new BrowserProperties();
+}
+```
+
+然后在 BrowserSecurityConfig 去进行配置: 将 loginPage 修改成 Controller 的 url，将 loginPage 和 配置的 loginPage 设置为不需要校验。
+
+```java
+package com.yafey.security.browser;
+@Configuration
+public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+	@Autowired
+	private SecurityProperties securityProperties;
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+		http.formLogin()  // 认证方式
+			.loginPage("/authentication/require") // 自定义 登陆页面
+	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+//		http.httpBasic()
+	         // 授权 , 以下表示 任何请求都需要 校验
+	         .and()
+	         .authorizeRequests()//对请求进行授权
+	         .antMatchers("/authentication/require",
+	        		 securityProperties.getBrowser().getLoginPage() 
+	        		 ).permitAll() //登陆页面不需要校验
+	         .anyRequest()//任何请求
+	         .authenticated()//都需要身份认证
+	         .and()
+	         .csrf().disable() // 关闭 跨站请求伪造 防护。
+	         ;  
+	}
+}
+```
+
+最后这个自定义的 controller 的逻辑就是跟我流程图里面的逻辑一样，如果请求是一个 html 请求 (http://localhost:8080/a.html )，去根据配置文件去进行跳转（如果用户配了自定义登录页面就走其对应的页面，如果用户没配置，则走 browser 默认的标准登录页面去进行登录。）
+
+- 访问 Restful 服务
+  ![not_html_request.gif](README_images/4_and_7/not_html_request.gif)
+- demo 中配置了 自定义 登陆页面， 访问 html 页面
+  `yafey.security.browser.loginPage=/demo-login.html`
+  ![demo-login-page.gif](README_images/4_and_7/demo-login-page.gif)
+- demo 中 没有配置， 访问 html 页面
+  ![browser-login-page.gif](README_images/4_and_7/browser-login-page.gif)
