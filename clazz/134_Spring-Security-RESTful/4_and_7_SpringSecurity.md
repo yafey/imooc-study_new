@@ -265,6 +265,86 @@ public String hello() {
 
 
 
+### 4.3. 自定义 用户认证逻辑
+
+> 默认的 用户名只能是 `user` ， 密码 是 每次启动时 自动生成，这不能符合大部分的应用场景。
+
+- 处理 用户 信息获取 逻辑
+
+- 处理用户 校验 逻辑
+
+- 处理 密码 加密 解密
+
+
+
+#### 4.3.1. 处理 用户 信息获取 的 逻辑
+
+> 整理自 https://www.jianshu.com/p/78a39a6c3447
+>
+> https://blog.csdn.net/u013504720/article/details/78998591
+>
+> https://blog.csdn.net/superbeyone/article/details/84623343
+
+用户信息获取逻辑 封装在 `UserDetailService` 接口里面， 里面只有一个 `loadUserByUsername(String username)` 方法，返回 UserDetails 对象。
+
+这个方法的作用 就是根据用户在前台输入的 用户名 到 数据集合（数据库）中去读取一个用户信息，用户信息最后被封装在一个 UserDetails 的接口的 实现类 中。然后 Spring Security 会拿着这个用户信息去做相应的处理和校验，如果校验都通过了就会把用户放在 session 中，那么用户认证就成功了。如果认证失败就会抛出 UsernameNotFoundException 异常，然后 Spring Security 捕获到这个异常会显示出相应的信息。
+
+```java
+package org.springframework.security.core.userdetails;
+
+public interface UserDetailsService {
+    UserDetails loadUserByUsername(String username) throws UsernameNotFoundException;
+}
+```
+
+
+
+#### 4.3.2. 自定义认证逻辑
+
+新建一个 **`UserDetailsService` 接口** 的实现类（如 MyUserDetailsService），重写里面的 loadUserByUsername 方法 。 
+
+- *其实在实际的开发过程中应该是要去 service 层去读取数据库中根据 String 类型的用户名去查询相应的用户信息的。但是在这我就简写了。*
+- **Spring Security 中已经有了一个实现类** `org.springframework.security.core.userdetails.User`。
+
+```java
+package com.yafey.security.browser;
+
+@Component
+@Slf4j
+public class MyUserDetailsService implements UserDetailsService {
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        //根据用户名查找用户信息
+        log.info("用户是:" + username);
+        //参数：用户名，密码，权限集合
+        User user = new User(username, "123qwe",
+        		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
+        return user;
+    }
+}
+```
+
+沿用之前的 BrowserSecurityConfig.java 中的配置 ， 也可以参考下面的配置方式。
+
+然后我们启动服务，在密码框中输入 `123qwe` 就会进入到系统 Restful 服务中。
+
+> 使用默认的 认证配置 
+>
+> ```java
+> @Configuration
+> @EnableWebSecurity
+> public class SecurityConfig extends WebSecurityConfigurerAdapter {
+>     @Autowired
+>     private UserDetailsService myUserDetailsService;
+>     /**
+>     *注册用户的获取逻辑
+>     */
+>     @Override
+>     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+>         auth.userDetailsService(myUserDetailsService);
+>     }
+> }
+> ```
 
 
 
