@@ -1062,3 +1062,157 @@ yafey.security.browser.loginType=REDIRECT
 然后在 `src/main/resources/resources` 目录下新建 `demo-index.html`，然后在浏览器中访问这个 html 页面，会先重定向到登录页面，输入错误的用户名密码，则跳转到了 Spring 默认的登录失败的页面中（报401错误），然后重新输入一次正确的用户名密码，则自动跳转到了 `demo-index.html`页面上。
 
 ![demo-index.gif](README_images/4_and_7/demo-index.gif)
+
+
+
+### 4.5(4-6). Spring Security 认证流程源码详解
+
+#### 4.5.1. 认证处理流程说明
+
+**原理图**
+
+![image-20200223234921618](README_images/4_and_7/image-20200223234921618.png)
+
+
+
+1. 在前台输入完用户名密码之后，会进入`UsernamePasswordAuthenticationFilter` 类中去获取用户名和密码，然后去构建一个 `UsernamePasswordAuthenticationToken` 对象。
+
+   这个对象实现了 `Authentication` 接口，封装了验证信息，在调用`UsernamePasswordAuthenticationToken` 的构造函数的时候先调用父类`AbstractAuthenticationToken` 的构造方法，**传递一个 `null`**，**因为在认证的时候并不知道这个用户有什么权限。**之后去给用户名密码赋值，最后有一个`setAuthenticated（false）`方法，**代表存进去的信息是否经过了身份认证**。
+
+     ![构建一个UsernamePasswordAuthenticationToken对象
+   ](README_images/4_and_7/image-20200223235435614.png)
+
+   ![UsernamePasswordAuthenticationToken 源码](README_images/4_and_7/image-20200224000107064.png)
+
+2. 实例化 `UsernamePasswordAuthenticationToken` 之后调用了`setDetails(request,authRequest)` 将请求的信息设到`UsernamePasswordAuthenticationToken` 中去，包括 ip、session 等内容。
+
+   
+
+3. 然后去调用 `AuthenticationManager`,它本身不包含验证的逻辑，它的作用是用来管理 `AuthenticationProvider`。
+
+   `authenticate` 这个方法是在 `ProviderManager` 类上的，这个类实现了 `AuthenticationManager` 接口，在 `authenticate` 方法中有一个 for 循环，去拿到所有的 `AuthenticationProvider`，真正校验的逻辑是写在 `AuthenticationProvider`中的，为什么是一个集合去进行循环？是因为不同的登陆方式认证逻辑是不一样的，可能是微信等社交平台登陆，也可能是用户名密码登陆。`AuthenticationManager` 其实是将 `AuthenticationProvider` 收集起来，然后登陆的时候挨个去 `AuthenticationProvider` 中问你这种验证逻辑支不支持此次登陆的方式，根据传进来的 `Authentication` 类型会挑出一个适合的provider来进行校验处理。
+
+   ![image-20200224000555505](README_images/4_and_7/image-20200224000555505.png)
+
+   
+
+   然后去调用 `provider` 的验证方法 `authenticate`方法，这是 `DaoAuthenticationProvider` 类中的一个方法，这个类继承了`AbstractUserDetailsAuthenticationProvider`。实际上 `authenticate` 的校验逻辑写在了 `AbstractUserDetailsAuthenticationProvider` 抽象类中，首先实例化`UserDetails`对象，调用了`retrieveUser`方法获取到了一个`user`对象，`retrieveUser`是一个抽象方法。
+
+   ![image-20200224000949558](README_images/4_and_7/image-20200224000949558.png)
+
+   ![image-20200224001229804](README_images/4_and_7/image-20200224001229804.png)
+
+   `DaoAuthenticationProvider` 实现了`retrieveUser`方法，在实现的方法中实例化了`UserDetails`对象 。
+
+   也就是相当于自定义验证逻辑的那个类（`MyUserDetailsService`），去实现`UserDetailService`类，这个返回结果就是我们自己在数据库中根据username查询出来的用户信息。
+
+   ![image-20200224001344525](README_images/4_and_7/image-20200224001344525.png)
+
+   在 `AbstractUserDetailsAuthenticationProvider` 中如果没拿到信息就会抛出异常，如果查到了就会去调用 `preAuthenticationChecks` 的 `check` 方法去进行预检查。
+
+   ![image-20200224001822042](README_images/4_and_7/image-20200224001822042.png)
+
+   在预检查中进行了三个检查，因为 `UserDetail` 类中有四个布尔类型，去检查其中的三个，用户是否锁定、用户是否过期，用户是否可用。
+
+   ![image-20200224001952326](README_images/4_and_7/image-20200224001952326.png)
+
+   预检查之后紧接着去调用了`additionalAuthenticationChecks`方法去进行附加检查，这个方法也是一个抽象方法，在`DaoAuthenticationProvider`中去具体实现，在里面进行了加密解密去校验当前的密码是否匹配。
+
+   ![image-20200224002232043](README_images/4_and_7/image-20200224002232043.png)
+
+   如果通过了预检查和附加检查，还会进行后检查，检查4个布尔中的最后一个。所有的检查都通过，则认为用户认证是成功的。用户认证成功之后，会将这些认证信息和 user 传递进去，调用 `createSuccessAuthentication` 方法。
+
+   ![image-20200224003210386](README_images/4_and_7/image-20200224003210386.png)
+
+   在这个方法中同样会实例化一个user，但是这个方法不会调用之前传两个参数的函数，而是会调用三个参数的构造函数。**这个时候，在调 super 的构造函数中不会再传 `null`**，会将 authorities 权限设进去，之后将用户密码设进去，**最后 `setAuthenticated(true)`,代表验证已经通过**。
+
+   ![image-20200224003719841](README_images/4_and_7/image-20200224003719841.png)
+
+   最后创建一个`authentication`会沿着验证的这条线返回回去。如果验证成功，则在这条路中调用我们系统的业务逻辑。如果在任何一处发生问题，就会抛出异常，调用我们自己定义的认证失败的处理器。
+
+   
+
+#### 4.5.2. 认证结果如何在多个请求之间共享
+
+**问题：它是什么时候，把什么东西放到了session中，什么时候在session中读出来。**
+原理图：
+
+![image-20200224005321991](README_images/4_and_7/image-20200224005321991.png)
+
+在验证成功之后，其中会调用`AbstractAuthenticationFilter`中的`successfulAuthentication`方法，在这个方法最后会调用我们自定义的`successHandle`登陆成功处理器，在调用这个方法之前会调用`SecurityContextHolder.getContext()`的`setAuthentication`方法，会将我们验证成功的那个`Authentication`放到`SecurityContext`中，然后再放到`SecurityContextHolder`中。`SecurityContextImpl`中只是重写了 hashcode 方法 和 equals 方法去保证`Authentication`的唯一。
+
+![image-20200224005429856](README_images/4_and_7/image-20200224005429856.png)
+
+
+
+`SecurityContextHolder` 是 `ThreadLocal` 的一个封装，**ThreadLocal 是线程绑定的一个 map，在同一个线程里在这个方法里往 ThreadLocal 里设置的变量是可以在另一个线程中读取到的**。它是一个线程级的全局变量，在一个线程中操作 `ThreadLocal` 中的数据会影响另一个线程。也就是说创建成功之后，塞进去，此次登陆所有的请求都会通过 `SecurityContextPersisenceFilter` 去 `SecurityContextHolder` 拿那个`Authentication`。`SecurityContextHolder` 在整个过滤器的最前面。
+
+
+
+当请求进来的时候，会先经过 `SecurityContextPersisenceFilter`，`SecurityContextPersisenceFilter` 会去 `session` 中去查 `SecurityContext` 的验证信息，如果有，就把 `SecurityContext` 的验证信息放到线程里直接返回回去，如果没有则通过，去通过其他的过滤器，当请求处理完回来之后，`SecurityContextHolder`会去检查当前线程中有没有`SecurityContext`的验证信息，如果有，则将`SecurityContext`放到`session`中。通过这样将不同的请求就可以从同一个`session`里拿到验证信息。
+
+> 简单来说就是进来的时候检查session，有认证信息放到线程里。出去的时候检查线程，有认证信息放到session里。
+>  因为整个请求和响应的过程都是在一个线程里去完成的，所以在线程的其他位置随时可以用SecurityContextHolder来拿到认证信息。
+
+![image-20200224005222454](README_images/4_and_7/image-20200224005222454.png)
+
+#### 4.5.3. 从 SecurityContextHolder 获取用户 认证信息
+
+在`DemoBrowserApplication`上加入一个新的服务 `/me`
+
+```
+package com.yafey;
+
+@SpringBootApplication
+@RestController
+@EnableSwagger2
+public class DemoBrowserApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(DemoBrowserApplication.class, args);
+	}
+	
+	@GetMapping("/")
+	public String hello() {
+		return "hello Spring Security";
+	}
+	
+    @GetMapping("/me")
+    public Object getCurrentUser(){
+        return SecurityContextHolder.getContext().getAuthentication();
+    }
+}
+```
+
+先访问 http://localhost:8080/self-login.html 登陆， 然后访问 http://localhost:8080/me 得到用户的身份信息
+
+![image-20200224011129170](README_images/4_and_7/image-20200224011129170.png)
+
+##### 改进1: Controller 方法 参数自动注入
+
+也可以这样写，同样也可以拿到用户的身份信息。（<span style="color:green">**Spring MVC 会自动的到 `SecurityContext` 中查找 Authentication 对象，然后注入。**</span>）
+
+```java
+@GetMapping("/me1")
+public Object getCurrentUser(Authentication authentication){
+	return authentication;
+}
+```
+
+
+
+##### 改进2 ：`@AuthenticationPrincipal`
+
+但是如果我只想拿到用户名不想拿到那么多一长串怎么办？
+代码可以这样写：(其实我只拿到了`Principal`对象 )
+
+```java
+@GetMapping("/me2")
+public Object getCurrentUser(@AuthenticationPrincipal UserDetails userDetails){
+	return userDetails;
+}
+```
+
+然后访问  http://localhost:8080/me2 , 结果如下：
+
+![image-20200224011523742](README_images/4_and_7/image-20200224011523742.png)
