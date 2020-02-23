@@ -7,4 +7,6 @@ public class BrowserProperties {
 	
 	private String loginPage = "/self-login.html";
 	
+	private LoginResponseType loginType = LoginResponseType.JSON;
+
 }

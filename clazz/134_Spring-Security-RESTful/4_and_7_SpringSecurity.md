@@ -969,6 +969,96 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 
 
 
-然后访问系统中的rest服务资源 （http://localhost:8080/a.html），输入错误的用户密码，然后会受到一个500的请求，里面包含了错误消息以及其堆栈信息。
+然后访问系统中的 Restful 服务资源 （http://localhost:8080/a.html），输入错误的用户密码，然后会受到一个500的请求，里面包含了错误消息以及其堆栈信息。
 
 ![image-20200223225326615](README_images/4_and_7/image-20200223225326615.png)
+
+
+
+#### 4.4.5(4-5). 改进 响应格式(JSON 或者 页面)
+
+如果我把登录和失败的处理方式写死，写成只返回json的方式也是不合适的，因为在某些项目中，我们可能会用到相关模板去进行架构（ JSP、freemarker模板等）。它的登录不是异步进行登录的而是同步进行的。我们需要让用户可以进行自己的配置去进行动态地选择同步登录还是异步登录（跳转、返回 JSON）。
+
+在 LoginResponseType 中我定义了两个枚举类型：JSON 和 REDIRECT 。通过判断这个枚举类型来动态地实现登录方式。然后重新构造登录成功处理器和登录失败处理器。
+
+```java
+package com.yafey.security.core.properties;
+public enum LoginResponseType {
+	/** 跳转 */
+	REDIRECT,
+	/** 返回json */
+	JSON
+}
+```
+
+登录成功 处理器 ：
+
+我们现在没有去实现 AuthenticationSuccessHandler 接口，而是去继承了SavedRequestAwareAuthenticationSuccessHandler 类，这个类是 Spring Security 提供的默认的登录成功处理器，然后重写父类的方法，进行判断。
+
+```java
+package com.yafey.security.browser;
+
+@Slf4j
+@Component("yafeyAuthentivationSuccessHandler")
+// SavedRequestAwareAuthenticationSuccessHandler 类是 Spring Security 提供的默认的登录成功处理器
+public class YafeyAuthentivationSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
+
+	@Autowired
+	private ObjectMapper objectMapper;
+	
+	@Autowired
+	private SecurityProperties securityProperties;
+
+	@Override
+	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+			Authentication authentication) throws IOException, ServletException {
+		log.info("登录成功");
+		if (LoginResponseType.JSON.equals(securityProperties.getBrowser().getLoginType())) {
+			response.setContentType("application/json;charset=UTF-8");
+			response.getWriter().write(objectMapper.writeValueAsString(authentication));
+		} else {
+			// 父类处理方式 就是 redirect 。
+			super.onAuthenticationSuccess(request, response, authentication);
+		}
+	}
+}
+```
+
+同样修改 登陆失败 处理器：
+
+```java
+package com.yafey.security.browser;
+@Slf4j
+@Component("yafeyAuthentivationFailureHandler")
+public class YafeyAuthentivationFailureHandler extends SimpleUrlAuthenticationFailureHandler {
+
+	@Autowired
+	private ObjectMapper objectMapper;
+	
+	@Autowired
+	private SecurityProperties securityProperties;
+
+	@Override
+	public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
+			AuthenticationException e) throws IOException, ServletException {
+		log.info("登录失败");
+		if (LoginResponseType.JSON.equals(securityProperties.getBrowser().getLoginType())) {
+			response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+			response.setContentType("application/json;charset=UTF-8");
+			response.getWriter().write(objectMapper.writeValueAsString(new SimpleResponse(e.getMessage())));
+		}else{
+			super.onAuthenticationFailure(request, response, e);
+		}
+	}
+}
+```
+
+然后如果我在 demo 项目中指定了登录类型为重定向
+
+```properties
+yafey.security.browser.loginType=REDIRECT
+```
+
+然后在 `src/main/resources/resources` 目录下新建 `demo-index.html`，然后在浏览器中访问这个 html 页面，会先重定向到登录页面，输入错误的用户名密码，则跳转到了 Spring 默认的登录失败的页面中（报401错误），然后重新输入一次正确的用户名密码，则自动跳转到了 `demo-index.html`页面上。
+
+![demo-index.gif](README_images/4_and_7/demo-index.gif)

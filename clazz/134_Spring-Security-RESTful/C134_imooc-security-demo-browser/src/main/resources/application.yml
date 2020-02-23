@@ -17,3 +17,8 @@ spring:
 #  security:
 #    browser:
 #      loginPage: /demo-login.html
+
+yafey:
+  security:
+    browser:
+      loginType: REDIRECT
