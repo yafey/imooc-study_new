@@ -20,6 +20,9 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     private AuthenticationSuccessHandler yafeyAuthentivationSuccessHandler;
 
+    @Autowired
+    private YafeyAuthentivationFailureHandler yafeyAuthentivationFailureHandler;
+    
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -30,7 +33,8 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 		http.formLogin()  // 认证方式
 			.loginPage("/authentication/require") // 自定义 登陆页面
 	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
-	        .successHandler(yafeyAuthentivationSuccessHandler)
+	        .successHandler(yafeyAuthentivationSuccessHandler)  // 配置成功处理器
+	        .failureHandler(yafeyAuthentivationFailureHandler)  // 配置失败处理器
 //		http.httpBasic()
 	         // 授权 , 以下表示 任何请求都需要 校验
 	         .and()

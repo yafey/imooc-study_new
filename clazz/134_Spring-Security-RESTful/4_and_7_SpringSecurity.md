@@ -888,3 +888,87 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 
 在未来如果用到QQ微信授权登录，其 authentication 信息是不一样的。
 
+
+
+
+
+#### 4.4.4(4-5). 自定义登录失败处理
+
+和 成功处理器 一样， 失败处理也只需要实现 AuthenticationFailureHandler 接口即可。
+
+这个接口的 onAuthenticationFailure 方法，其中的第三个参数 不再是 Authentication 对象，而是一个异常 AuthenticationException ，这是因为登录失败的时候会抛出一系列异常（比如 用户名未找到、密码错误等），这个时候登录信息是不完整的，我们就拿不到那个登录验证信息，取而代之的是一个认证过程中发生的错误所产生的异常 （AuthenticationException 有一堆 具体的异常 子类）。
+
+```java
+package com.yafey.security.browser;
+
+@Slf4j
+@Component("yafeyAuthentivationFailureHandler")
+public class YafeyAuthentivationFailureHandler implements AuthenticationFailureHandler  {
+
+	@Autowired
+	private ObjectMapper objectMapper;
+
+	@Override
+	public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
+			AuthenticationException e) throws IOException, ServletException {
+		log.info("登录失败");
+		response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+		response.setContentType("application/json;charset=UTF-8");
+		response.getWriter().write(objectMapper.writeValueAsString(e));
+	}
+
+}
+```
+
+
+
+同样，去 BrowserSecurityConfig 中进行配置 `failureHandler(yafeyAuthentivationFailureHandler)`
+
+```java
+package com.yafey.security.browser;
+
+@Configuration
+public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+
+	@Autowired
+	private SecurityProperties securityProperties;
+	
+    @Autowired
+    private AuthenticationSuccessHandler yafeyAuthentivationSuccessHandler;
+
+    @Autowired
+    private YafeyAuthentivationFailureHandler yafeyAuthentivationFailureHandler;
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+    
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+		http.formLogin()  // 认证方式
+			.loginPage("/authentication/require") // 自定义 登陆页面
+	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+	        .successHandler(yafeyAuthentivationSuccessHandler)  // 配置成功处理器
+	        .failureHandler(yafeyAuthentivationFailureHandler)  // 配置失败处理器
+//		http.httpBasic()
+	         // 授权 , 以下表示 任何请求都需要 校验
+	         .and()
+	         .authorizeRequests()//对请求进行授权
+	         .antMatchers("/authentication/require",
+	        		 securityProperties.getBrowser().getLoginPage() 
+	        		 ).permitAll() //登陆页面不需要校验
+	         .anyRequest()//任何请求
+	         .authenticated()//都需要身份认证
+	         .and()
+	         .csrf().disable() // 关闭 跨站请求伪造 防护。
+	         ;  
+	}
+}
+```
+
+
+
+然后访问系统中的rest服务资源 （http://localhost:8080/a.html），输入错误的用户密码，然后会受到一个500的请求，里面包含了错误消息以及其堆栈信息。
+
+![image-20200223225326615](README_images/4_and_7/image-20200223225326615.png)
