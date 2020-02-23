@@ -623,15 +623,15 @@ spring security中密码相关的验证工作由实现`PasswordEncoder`的类完
 
 基于以上问题，我来对这个安全模块进行改进：
 
-##### 1、处理不同类型的请求
 
-先来看看整体的流程图
+
+**处理不同类型的请求** , 先来看看整体的流程图
 
 ![image-20200222170930859](README_images/4_and_7/image-20200222170930859.png)
 
 
 
-###### <1> 写自定义的Controller
+##### <1> 写自定义的Controller
 
 在写这个Controller时，我们需要知道，对于html请求，我们不可能永远跳转到一个死的登录页面上去，我需要提供一个能力，去读取配置文件实现活的返回页面。
 在这个方法上，我返回的是一个http的状态码。
@@ -676,7 +676,7 @@ public class BrowserSecurityController {
 }
 ```
 
-###### <2>定义返回数据类型
+##### <2>定义返回数据类型
 
 这个方法应该返回的是一个自定义的类，里面去返回各种各样的属性，因此我来创建一个返回类SimpleResponse ，里面只有一个Object类型的变量。
 
@@ -689,7 +689,7 @@ public class SimpleResponse {
 }
 ```
 
-###### <3>将页面配置写活
+##### <3>将页面配置写活
 
 返回的数据类型定义完了，就需要去将配置的自定义页面去写活，在这里我们使用 demo 项目去引用 browser 项目，在 demo 的配置文件中 新增配置
 
@@ -770,9 +770,121 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 最后这个自定义的 controller 的逻辑就是跟我流程图里面的逻辑一样，如果请求是一个 html 请求 (http://localhost:8080/a.html )，去根据配置文件去进行跳转（如果用户配了自定义登录页面就走其对应的页面，如果用户没配置，则走 browser 默认的标准登录页面去进行登录。）
 
 - 访问 Restful 服务
+  
   ![not_html_request.gif](README_images/4_and_7/not_html_request.gif)
 - demo 中配置了 自定义 登陆页面， 访问 html 页面
   `yafey.security.browser.loginPage=/demo-login.html`
+  
   ![demo-login-page.gif](README_images/4_and_7/demo-login-page.gif)
 - demo 中 没有配置， 访问 html 页面
+  
   ![browser-login-page.gif](README_images/4_and_7/browser-login-page.gif)
+
+#### 4.4.3(4-5). 自定义登录成功处理
+
+在默认的处理中，登录成功之后会重定向到 引发登陆的 URL 上面，但是往往不满足我们真实的开发场景：
+
+- 现在前端 SPA（single page web application）比较流行的情况下，登陆动作可能不是由 同步的表单来触发的，而是可能由 异步的 Ajax 来触发的（前端期望拿到的是 JSON 格式的响应体 ）。
+- 比如登录成功后进行签到处理、进行积分的累积等。
+
+
+
+**Spring Security 中 自定义登录成功处理，只需要实现一个接口（AuthenticationSuccessHandler）即可。**
+
+代码写在了 browser 项目中。
+
+AuthenticationSuccessHandler 接口中，只有一个 onAuthenticationSuccess 方法需要实现，**这个方法会在登录成功之后调用**，参数除了 HttpServletRequest 和 HttpServletResponse 对象之外，
+
+
+
+还有一个 **Authentication 接口，是 Spring Security 的一个核心接口，它的作用是封装认证信息**。
+
+- 包含了 发起认证请求中的一些信息， 比如 发起认证请求的 ip ， session。
+- 以及 认证成功后，UserDetailService.loadUserByUsername 返回的 UserDetails 接口实例对象。
+
+
+
+我们在用户登录成功之后将 authentication 对象中的信息返回给了前台 来观察里面的数据。
+
+```java
+package com.yafey.security.browser;
+
+@Slf4j
+@Component("yafeyAuthentivationSuccessHandler")
+public class YafeyAuthentivationSuccessHandler implements AuthenticationSuccessHandler {
+
+	@Autowired
+	private ObjectMapper objectMapper;
+
+	@Override
+	public void onAuthenticationSuccess(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse,
+			Authentication authentication) throws IOException, ServletException {
+		log.info("登录成功");
+		httpServletResponse.setContentType("application/json;charset=UTF-8");
+		httpServletResponse.getWriter().write(objectMapper.writeValueAsString(authentication));
+	}
+}
+```
+
+
+
+ 然后在 BrowserSecurityConfig去进行配置 `successHandler(yafeyAuthentivationSuccessHandler)`
+
+```java
+package com.yafey.security.browser;
+
+@Configuration
+public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+
+	@Autowired
+	private SecurityProperties securityProperties;
+	
+    @Autowired
+    private AuthenticationSuccessHandler yafeyAuthentivationSuccessHandler;
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+    
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+		http.formLogin()  // 认证方式
+			.loginPage("/authentication/require") // 自定义 登陆页面
+	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+	        .successHandler(yafeyAuthentivationSuccessHandler)
+//		http.httpBasic()
+	         // 授权 , 以下表示 任何请求都需要 校验
+	         .and()
+	         .authorizeRequests()//对请求进行授权
+	         .antMatchers("/authentication/require",
+	        		 securityProperties.getBrowser().getLoginPage() 
+	        		 ).permitAll() //登陆页面不需要校验
+	         .anyRequest()//任何请求
+	         .authenticated()//都需要身份认证
+	         .and()
+	         .csrf().disable() // 关闭 跨站请求伪造 防护。
+	         ;  
+	}
+}
+```
+
+
+
+然后我们去访问系统的资源 http://localhost:8080/a.html，会先跳转到登录页面，登录成功之后，我会看到一系列的用户相关信息
+
+![image-20200223111139716](README_images/4_and_7/image-20200223111139716.png)
+
+解释:
+
+- `authenticated` 为 true，表示用户通过了身份认证。
+- `authorities` 中封装了用户的身份权限信息。
+- `credentials` 是用户输入的用户密码，但是默认的 SpringSecurity 对其进行了处理返回的是 null。
+- `details` 包含了认证请求的一些信息：访问地址以及 sessionId。
+- `name` 是用户写的用户名。
+- `principal` 是 userdetails 里面的内容。
+
+
+
+在未来如果用到QQ微信授权登录，其 authentication 信息是不一样的。
+

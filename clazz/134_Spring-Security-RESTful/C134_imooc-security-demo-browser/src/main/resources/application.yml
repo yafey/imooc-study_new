@@ -13,7 +13,7 @@ spring:
 #  basic:
 #    enabled: false
 
-yafey:
-  security:
-    browser:
-      loginPage: /demo-login.html
+#yafey:
+#  security:
+#    browser:
+#      loginPage: /demo-login.html

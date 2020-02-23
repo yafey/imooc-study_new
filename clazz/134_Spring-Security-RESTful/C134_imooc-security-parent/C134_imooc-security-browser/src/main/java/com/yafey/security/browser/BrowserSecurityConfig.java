@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 
 import com.yafey.security.core.properties.SecurityProperties;
 
@@ -16,6 +17,9 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 	@Autowired
 	private SecurityProperties securityProperties;
 	
+    @Autowired
+    private AuthenticationSuccessHandler yafeyAuthentivationSuccessHandler;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -26,6 +30,7 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 		http.formLogin()  // 认证方式
 			.loginPage("/authentication/require") // 自定义 登陆页面
 	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+	        .successHandler(yafeyAuthentivationSuccessHandler)
 //		http.httpBasic()
 	         // 授权 , 以下表示 任何请求都需要 校验
 	         .and()
