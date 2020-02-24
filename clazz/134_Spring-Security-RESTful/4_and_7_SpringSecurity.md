@@ -1216,3 +1216,312 @@ public Object getCurrentUser(@AuthenticationPrincipal UserDetails userDetails){
 然后访问  http://localhost:8080/me2 , 结果如下：
 
 ![image-20200224011523742](README_images/4_and_7/image-20200224011523742.png)
+
+
+
+### 4.6(4-7). 图形验证码
+
+1. 开发生成图形验证码接口
+
+2. 在认证流程中加入图形验证码的校验
+3. 重构代码
+
+
+
+#### 4.6.1. 开发生成图形验证码接口
+
+1. 根据随机数生成图片
+
+   因为不管是手机APP还是浏览器都可能会用到，所以我写到了core模块。
+
+2. 将随机数存到 Session 中
+
+3. 再将生成的图片写到接口的响应中
+
+
+
+首先定义一个实体类，封装验证码的信息，其中包含图片信息，验证码，以及过期时间。
+
+注意：
+
+- 在重写构造方法的时候，入参是一个int类型的一个过期时间，就是一个秒，一般过期时间都是60秒，然后在构造方法里面 `this.expireTime = LocalDateTime.now().plusSeconds(expireTime);` 这个代码指的是将过期时间设为一个**未来的**一个时间。
+- 这个类中还有一个判断验证码是否过期的一个方法 isExpried。
+
+```java
+package com.yafey.security.core.validate.code;
+
+@Data
+@AllArgsConstructor
+public class ImageCode {
+    private BufferedImage image;
+    private String code;
+    private LocalDateTime expireTime; // 过期时间
+    
+    // 注意：构造方法中的 expireTime 是 int 型，多少秒，所以 成员变量的过期时间应该为 当前时间 + 多少秒过期 来构建一个 未来的时间。 
+    public ImageCode(BufferedImage image, String code, int expireTime) {
+        this.image = image;
+        this.code = code;
+        this.expireTime = LocalDateTime.now().plusSeconds(expireTime);
+    }
+    
+	public boolean isExpried() {
+		return LocalDateTime.now().isAfter(expireTime);
+	}
+}
+```
+生成验证码
+```java
+package com.yafey.security.core.validate.code;
+
+@RestController
+public class ValidateCodeController {
+
+	public static final String SESSION_KEY = "SESSION_KEY_IMAGE_CODE";
+
+	private SessionStrategy sessionStrategy = new HttpSessionSessionStrategy();
+
+	@GetMapping("/code/image")
+	public void createCode(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		ImageCode imageCode = createImageCode(request);
+		sessionStrategy.setAttribute(new ServletWebRequest(request), SESSION_KEY, imageCode);
+		ImageIO.write(imageCode.getImage(), "JPEG", response.getOutputStream());
+	}
+
+	private ImageCode createImageCode(HttpServletRequest request) {
+		int width = 67;
+		int height = 23;
+		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+		Graphics g = image.getGraphics();
+
+		Random random = new Random();
+
+		g.setColor(getRandColor(200, 250));
+		g.fillRect(0, 0, width, height);
+		g.setFont(new Font("Times New Roman", Font.ITALIC, 20));
+		g.setColor(getRandColor(160, 200));
+		for (int i = 0; i < 155; i++) {
+			int x = random.nextInt(width);
+			int y = random.nextInt(height);
+			int xl = random.nextInt(12);
+			int yl = random.nextInt(12);
+			g.drawLine(x, y, x + xl, y + yl);
+		}
+
+		String sRand = "";
+		for (int i = 0; i < 4; i++) {
+			String rand = String.valueOf(random.nextInt(10));
+			sRand += rand;
+			g.setColor(new Color(20 + random.nextInt(110), 20 + random.nextInt(110), 20 + random.nextInt(110)));
+			g.drawString(rand, 13 * i + 6, 16);
+		}
+
+		g.dispose();
+
+		return new ImageCode(image, sRand, 60);
+	}
+
+	/**
+	 * 生成随机背景条纹
+	 *
+	 * @param fc
+	 * @param bc
+	 * @return
+	 */
+	private Color getRandColor(int fc, int bc) {
+		Random random = new Random();
+		if (fc > 255) {
+			fc = 255;
+		}
+		if (bc > 255) {
+			bc = 255;
+		}
+		int r = fc + random.nextInt(bc - fc);
+		int g = fc + random.nextInt(bc - fc);
+		int b = fc + random.nextInt(bc - fc);
+		return new Color(r, g, b);
+	}
+
+}
+```
+
+将 验证码显示在 登陆页面 self-login.html
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>登录</title>
+</head>
+<body>
+	<h1>标准登录页面</h1>
+	<h3>表单登录</h3>
+	<form action="/authentication/form" method="post">
+		<table>
+			<tr>
+				<td>用户名：</td>
+				<td><input type="text" name="username" /></td>
+			</tr>
+			<tr>
+				<td>密码：</td>
+				<td><input type="password" name="password" /></td>
+			</tr>
+			<tr>
+				<td>图形验证码:</td>
+				<td><input type="text" name="imageCode"> <img
+					src="/code/image"></td>
+			</tr>
+			<tr>
+				<td colspan="2"><button type="submit">登录</button></td>
+			</tr>
+		</table>
+	</form>
+</body>
+</html>
+```
+
+
+
+二、在认证流程中加入图形验证码的校验
+
+在 Spring Security 中，并没有提供图像验证码的过滤器，但是我们可以在过滤器链中加入我们自己写的图形过滤器。就是在 UsernamePasswordAuthenticationFilter 过滤器之前加一个自己写的过滤器。在自己写的过滤器里面去执行校验的逻辑，如果验证通过则将请求通过，如果验证失败就抛出异常。
+
+> OncePerRequestFilter 是 Security 的一个工具类，来保证我们的 filter 只会被调用一次。
+
+```java
+package com.yafey.security.core.validate.code;
+
+// OncePerRequestFilter 是 Security 的一个工具类，来保证我们的 filter 只会被调用一次。
+public class ValidateCodeFilter extends OncePerRequestFilter {
+
+	@Setter @Getter
+    private AuthenticationFailureHandler authenticationFailureHandler;
+
+    private SessionStrategy sessionStrategy = new HttpSessionSessionStrategy();
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest httpServletRequest,
+    		HttpServletResponse httpServletResponse, FilterChain filterChain) 
+    		throws ServletException, IOException {
+    	
+        if (StringUtils.equals("/authentication/form",httpServletRequest.getRequestURI()) 
+        		&& StringUtils.equalsIgnoreCase(httpServletRequest.getMethod(),"post")){
+            try {
+                validate(new ServletWebRequest(httpServletRequest));
+            }catch (ValidateCodeException e){
+                authenticationFailureHandler.onAuthenticationFailure(httpServletRequest,httpServletResponse,e);
+                return ; // 如果校验失败了，不再经过后续的过滤器。
+            }
+        }
+        filterChain.doFilter(httpServletRequest,httpServletResponse);
+    }
+
+    /**
+     * 校验逻辑
+     * @param
+     */
+    public void validate(ServletWebRequest request) throws ServletRequestBindingException {
+
+        ImageCode codeInSession = (ImageCode) sessionStrategy.getAttribute(request,ValidateCodeController.SESSION_KEY);
+
+        String codeInRequest =  ServletRequestUtils.getStringParameter(request.getRequest(),"imageCode");
+
+        if (StringUtils.isBlank(codeInRequest)) {
+            throw new ValidateCodeException("验证码的值不能为空");
+        }
+
+        if (codeInSession == null) {
+            throw new ValidateCodeException( "验证码不存在");
+        }
+
+        if (codeInSession.isExpried()) {
+            sessionStrategy.removeAttribute(request, ValidateCodeController.SESSION_KEY);
+            throw new ValidateCodeException( "验证码已过期");
+        }
+
+        if (!StringUtils.equals(codeInSession.getCode(), codeInRequest)) {
+            throw new ValidateCodeException("验证码不匹配");
+        }
+
+        sessionStrategy.removeAttribute(request, ValidateCodeController.SESSION_KEY);
+
+    } 
+}
+```
+
+其中我还定义了一个异常信息：继承自 AuthenticationException ，这个异常是安全框架默认提供的一个异常。
+
+```java
+package com.yafey.security.core.validate.code;
+
+public class ValidateCodeException extends AuthenticationException {
+	private static final long serialVersionUID = -7285211528095468156L;
+	public ValidateCodeException(String msg) {
+		super(msg);
+	}
+}
+```
+
+三、配置 Spring Security 的 config ：BrowserSecurityConfig.java
+
+设置 filter 的失败 处理器，并 将 filter 加在 某个过滤器 之前。（L22-27）
+
+imageCode 也不需要权限校验。(L39)
+
+
+```java
+package com.yafey.security.browser;
+
+@Configuration
+public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+
+	@Autowired
+	private SecurityProperties securityProperties;
+	
+    @Autowired
+    private AuthenticationSuccessHandler yafeyAuthentivationSuccessHandler;
+
+    @Autowired
+    private YafeyAuthentivationFailureHandler yafeyAuthentivationFailureHandler;
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+    
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+        ValidateCodeFilter validateCodeFilter = new ValidateCodeFilter();
+        // 设置 filter 的失败 处理器
+        validateCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler);
+        
+		http
+        	.addFilterBefore(validateCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
+			.formLogin()  // 认证方式
+			.loginPage("/authentication/require") // 自定义 登陆页面
+	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+	        .successHandler(yafeyAuthentivationSuccessHandler)  // 配置成功处理器
+	        .failureHandler(yafeyAuthentivationFailureHandler)  // 配置失败处理器
+//		http.httpBasic()
+	         // 授权 , 以下表示 任何请求都需要 校验
+	         .and()
+	         .authorizeRequests()//对请求进行授权
+	         .antMatchers("/authentication/require",
+	        		 securityProperties.getBrowser().getLoginPage()
+	        		 ,"/code/image" // imageCode 也不需要权限校验
+	        		 ).permitAll() //登陆页面不需要校验
+	         .anyRequest()//任何请求
+	         .authenticated()//都需要身份认证
+	         .and()
+	         .csrf().disable() // 关闭 跨站请求伪造 防护。
+	         ;  
+	}
+}
+```
+
+这样，项目就可以运行了，但是在我登录失败之后它会弹出一大堆 堆栈信息，不能比较方便的找出校验错误的信息。修改 YafeyAuthentivationFailureHandler 的onAuthenticationFailure 方法，之前是将异常全部写入httpServletResponse中，现在只将异常的message写进去即可。
+
+![image_code_login_failed.gif](README_images/4_and_7/image_code_login_failed.gif)
+
+![image_code_login_succeed.gif](README_images/4_and_7/image_code_login_succeed.gif)
