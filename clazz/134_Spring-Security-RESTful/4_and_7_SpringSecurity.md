@@ -1705,4 +1705,42 @@ yafey:
 
 登陆成功后，如果 访问 http://localhost:8080/users 和  http://localhost:8080/user/1 出现 `验证码不能为空` 的提醒，说明配置生效了。
 
+
+
 ![image-code-url-config.gif](README_images/4_and_7/image-code-url-config.gif)
+
+##### 4.6.2.3. 验证码生成逻辑可配置
+
+新建 ValidateCodeGenerator 接口，将 验证码生成的逻辑放到  ImageCodeGenerator 类中。
+
+```java
+package com.yafey.security.core.validate.code;
+public interface ValidateCodeGenerator {
+	ImageCode generate(ServletWebRequest request);
+}
+```
+
+同时新建配置类， 使用 `@ConditionalOnMissingBean` 注解 初始化 bean ，这个注解 会先去 容器中查找 bean，如果找不到 再 创建。 
+
+- 如果以后要使用 新的 图形生成方式，只需要将新的类声明成 `@Component("imageValidateCodeGenerator")` , 此处就不会初始化，而是会使用 新加的 bean。
+
+```java
+package com.yafey.security.core.validate.code;
+
+@Configuration
+public class ValidateCodeBeanConfig {
+	
+	@Autowired
+	private SecurityProperties securityProperties;
+	
+	@Bean
+	@ConditionalOnMissingBean(name = "imageValidateCodeGenerator")  // 如果在 Spring 容器中没有找到 name 的bean，再初始化 bean。
+	public ValidateCodeGenerator imageValidateCodeGenerator() {
+		ImageCodeGenerator codeGenerator = new ImageCodeGenerator(); 
+		codeGenerator.setSecurityProperties(securityProperties);
+		return codeGenerator;
+	}
+}
+```
+
+效果与 上一节 一致， 略。
