@@ -1541,3 +1541,168 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 效果：request 中的 200 宽度 覆盖了 demo 里面 100， 同时使用 demo 里面的 6 位字符。
 
 ![image-20200224223431201](README_images/4_and_7/image-20200224223431201.png)
+
+##### 4.6.2.2. 验证码拦截的接口可配置
+
+ValidateCodeFilter 实现 InitializingBean 接口，覆盖 afterPropertiesSet 方法，将配置的 URL 加到 URL set 集合中。
+
+同时使用 Spring 的 AntPathMatcher 进行 URI 匹配，因为会涉及到 类似 `/user/*` 这样的配置。
+
+```java
+package com.yafey.security.core.validate.code;
+
+@Accessors(chain = true)
+// OncePerRequestFilter 是 Security 的一个工具类，来保证我们的 filter 只会被调用一次。
+public class ValidateCodeFilter extends OncePerRequestFilter implements InitializingBean {
+
+	@Setter @Getter
+    private AuthenticationFailureHandler authenticationFailureHandler;
+
+    private SessionStrategy sessionStrategy = new HttpSessionSessionStrategy();
+    
+	@Setter @Getter
+    private SecurityProperties securityProperties;
+    
+    private Set<String> urlSet = new HashSet<>();
+    
+	/**
+	 * Spring 验证请求url与配置的url是否匹配的工具类
+	 */
+	private AntPathMatcher pathMatcher = new AntPathMatcher();
+
+
+    @Override
+    public void afterPropertiesSet() throws ServletException {
+    	super.afterPropertiesSet();
+    	String[] configUrls = StringUtils.splitByWholeSeparatorPreserveAllTokens(securityProperties.getCode().getImage().getUrl(), ",");
+		for (String url : configUrls) {
+			urlSet.add(url);
+		}
+		urlSet.add("/authentication/form");
+    }
+    
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+    		HttpServletResponse httpServletResponse, FilterChain filterChain) 
+    		throws ServletException, IOException {
+    	
+    	boolean action = false;
+    	for (String url : urlSet) {
+			if(pathMatcher.match(url, request.getRequestURI())) { // 如果请求中匹配到配置中任意一个 uri,就需要校验。
+				action = true;
+			}
+		}
+    	
+        if (action){
+            try {
+                validate(new ServletWebRequest(request));
+            }catch (ValidateCodeException e){
+                authenticationFailureHandler.onAuthenticationFailure(request,httpServletResponse,e);
+                return ; // 如果校验失败了，不再经过后续的过滤器。
+            }
+        }
+
+        filterChain.doFilter(request,httpServletResponse);
+
+    }
+
+    /**
+     * 校验逻辑
+     * @param
+     */
+    public void validate(ServletWebRequest request) throws ServletRequestBindingException {
+
+        ImageCode codeInSession = (ImageCode) sessionStrategy.getAttribute(request,ValidateCodeController.SESSION_KEY);
+
+        String codeInRequest =  ServletRequestUtils.getStringParameter(request.getRequest(),"imageCode");
+
+        if (StringUtils.isBlank(codeInRequest)) {
+            throw new ValidateCodeException("验证码的值不能为空");
+        }
+
+        if (codeInSession == null) {
+            throw new ValidateCodeException( "验证码不存在");
+        }
+
+        if (codeInSession.isExpried()) {
+            sessionStrategy.removeAttribute(request, ValidateCodeController.SESSION_KEY);
+            throw new ValidateCodeException( "验证码已过期");
+        }
+
+        if (!StringUtils.equals(codeInSession.getCode(), codeInRequest)) {
+            throw new ValidateCodeException("验证码不匹配");
+        }
+
+        sessionStrategy.removeAttribute(request, ValidateCodeController.SESSION_KEY);
+
+    }   
+}
+```
+
+将 securityProperties 传给 filter，并调用 filter 的 afterPropertiesSet 方法 初始化 配置。
+
+```java
+package com.yafey.security.browser;
+
+@Configuration
+public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+
+	@Autowired
+	private SecurityProperties securityProperties;
+	
+    @Autowired
+    private AuthenticationSuccessHandler yafeyAuthentivationSuccessHandler;
+
+    @Autowired
+    private YafeyAuthentivationFailureHandler yafeyAuthentivationFailureHandler;
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+    
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+        ValidateCodeFilter validateCodeFilter = new ValidateCodeFilter();
+        // 设置 filter 的失败 处理器
+        validateCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler)
+        					.setSecurityProperties(securityProperties)
+        					.afterPropertiesSet(); // 配置初始化
+        
+		http
+        	.addFilterBefore(validateCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
+			.formLogin()  // 认证方式
+			.loginPage("/authentication/require") // 自定义 登陆页面
+	        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+	        .successHandler(yafeyAuthentivationSuccessHandler)  // 配置成功处理器
+	        .failureHandler(yafeyAuthentivationFailureHandler)  // 配置失败处理器
+//		http.httpBasic()
+	         // 授权 , 以下表示 任何请求都需要 校验
+	         .and()
+	         .authorizeRequests()//对请求进行授权
+	         .antMatchers("/authentication/require",
+	        		 securityProperties.getBrowser().getLoginPage()
+	        		 ,"/code/image"
+	        		 ).permitAll() //登陆页面不需要校验
+	         .anyRequest()//任何请求
+	         .authenticated()//都需要身份认证
+	         .and()
+	         .csrf().disable() // 关闭 跨站请求伪造 防护。
+	         ;  
+	}
+}
+```
+
+在 demo 项目的配置文件中 配置 
+
+```yaml
+yafey:
+  security:
+    code:
+      image:
+        url: /users,/user/*
+```
+
+登陆成功后，如果 访问 http://localhost:8080/users 和  http://localhost:8080/user/1 出现 `验证码不能为空` 的提醒，说明配置生效了。
+
+![image-code-url-config.gif](README_images/4_and_7/image-code-url-config.gif)

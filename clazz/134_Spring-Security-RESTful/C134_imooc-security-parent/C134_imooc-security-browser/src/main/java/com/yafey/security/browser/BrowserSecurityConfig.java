@@ -34,7 +34,9 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 	protected void configure(HttpSecurity http) throws Exception {
         ValidateCodeFilter validateCodeFilter = new ValidateCodeFilter();
         // 设置 filter 的失败 处理器
-        validateCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler);
+        validateCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler)
+        					.setSecurityProperties(securityProperties)
+        					.afterPropertiesSet(); // 配置初始化
         
 		http
         	.addFilterBefore(validateCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
