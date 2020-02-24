@@ -1525,3 +1525,19 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 ![image_code_login_failed.gif](README_images/4_and_7/image_code_login_failed.gif)
 
 ![image_code_login_succeed.gif](README_images/4_and_7/image_code_login_succeed.gif)
+
+#### 4.6.2. 重构图形验证码接口
+
+1. 验证码基本参数可配 （验证码图片的 width、height，以及 验证码数字的位数，验证码的有效时间）
+2. 验证码拦截的接口可配置
+3. 验证码生成逻辑可配置
+
+
+
+##### 4.6.2.1. 图形验证码基本参数配置
+
+![image-20200224223602855](README_images/4_and_7/image-20200224223602855.png)
+
+效果：request 中的 200 宽度 覆盖了 demo 里面 100， 同时使用 demo 里面的 6 位字符。
+
+![image-20200224223431201](README_images/4_and_7/image-20200224223431201.png)
