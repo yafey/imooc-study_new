@@ -1526,7 +1526,7 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 
 ![image_code_login_succeed.gif](README_images/4_and_7/image_code_login_succeed.gif)
 
-#### 4.6.2. 重构图形验证码接口
+#### 4.6.2(4-8). 重构图形验证码接口
 
 1. 验证码基本参数可配 （验证码图片的 width、height，以及 验证码数字的位数，验证码的有效时间）
 2. 验证码拦截的接口可配置
@@ -1744,3 +1744,196 @@ public class ValidateCodeBeanConfig {
 ```
 
 效果与 上一节 一致， 略。
+
+
+
+
+
+### 4.7(4-9). 添加“记住我”功能
+
+> 整理自 ： https://www.jianshu.com/p/9843296e0d5a
+
+1. 记住我功能基本原理
+2. 记住我功能具体实现
+3. 记住我功能 Spring Security 源码解析
+
+
+
+#### 4.7.1. 记住我功能基本原理
+
+一个请求，先进入 UsernamePasswordAuthenticationFilter，当这个过滤器认证成功之后，会调用一个 RemeberMeService 服务，在 RemeberMeService 类里面有一个 TokenRepository 方法。
+
+
+
+RemeberMeService 这个服务会干什么呢？它会生成一个 token，然后将这个 token 存入到浏览器的 Cookie 中去，同时 TokenRepository 方法还可以将这个 Token 写入到数据库中，因为我这个动作是在通过 UsernamePasswordAuthenticationFilter 认证成功之后去做的，所以在存入 DB 的时候会将用户名和 token 存入进去，即 token 和用户名是一一对应的。
+
+
+
+等第二天这个同一个用户再次访问系统的时候，这个请求在经过过滤器链的时候会经过 RememberMeAuthenticationFilter 过滤器，这个过滤器的作用就是读取 cookie 中的 token，然后交给 RemeberMeService，RemeberMeService会用TokenRepository到数据库中去查询这个token在数据库中有没有记录，如果有记录会将username取出来，取出来之后会调用UserDetailsService去获取用户信息，然后将用户信息存入到SecurityContext中去，以此来实现记住我功能。
+
+![记住我功能基本原理](README_images/4_and_7/image-20200225093848172.png "记住我功能基本原理")
+
+**RemeberMeService** 的过滤器链位置，它是倒数第二个 过滤器，当其他的过滤器都没有认证通过的时候，会尝试使用这个进行认证。
+
+![RemeberMeService 的过滤器链位置](README_images/4_and_7/image-20200225093833822.png "RemeberMeService 的过滤器链位置")
+
+
+
+#### 4.7.2. 记住我功能具体实现
+
+修改页面 self-login.html，增加 checkbox，注意，它的 name 一定要写成 `remember-me`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>登录</title>
+</head>
+<body>
+	<h1>标准登录页面</h1>
+	<h3>表单登录</h3>
+	<form action="/authentication/form" method="post">
+		<table>
+			<tr>
+				<td>用户名：</td>
+				<td><input type="text" name="username" /></td>
+			</tr>
+			<tr>
+				<td>密码：</td>
+				<td><input type="password" name="password" /></td>
+			</tr>
+			<tr>
+				<td>图形验证码:</td>
+				<td><input type="text" name="imageCode"> <img
+					src="/code/image?width=200"></td>
+			</tr>
+			<tr>
+				<!-- Spring Security 记住我功能，name 一定要写成 `remember-me` -->
+				<td colspan="2"><input name="remember-me" type="checkbox"
+					value="true" />记住我</td>
+			</tr>
+			<tr>
+				<td colspan="2"><button type="submit">登录</button></td>
+			</tr>
+		</table>
+	</form>
+</body>
+</html>
+```
+
+配置数据库
+
+因为添加"记住我"这个功能需要用到DB，所以我在properties文件中去加入我的数据库的信息
+
+```yaml
+spring:
+  datasource:  
+    url: jdbc:mysql://192.168.99.218:13306/imooc_c134?useUnicode=true&characterEncoding=UTF-8&useSSL=false&characterSetResults=utf8&serverTimezone=GMT
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+```
+
+注意： 因为用了 MySQL 8 ， 会有一些坑。
+
+> Spring Boot 与 MySQL 8 填坑 指南。
+>
+> > 参考自： [Unknown system variable ‘tx_isolation’ @CSDN](https://blog.csdn.net/qq_40495860/article/details/90513863?depth_1-utm_source=distribute.pc_relevant.none-task&utm_source=distribute.pc_relevant.none-task)
+> >
+> > https://blog.csdn.net/DavyLee2008/article/details/81007954
+> >
+> > https://blog.csdn.net/java_cxrs/article/details/84332182
+> >
+> > [https://github.com/Flying9001/springBootDemo/blob/master/doc/8.springBoot%E9%80%82%E9%85%8DMySQL8.0.md](https://github.com/Flying9001/springBootDemo/blob/master/doc/8.springBoot适配MySQL8.0.md)
+>
+> 1. Spring Boot 连接 MySQL8 报错：
+>    `java.sql.SQLException: Unknown system variable 'tx_isolation'`
+>
+>    mysql 8 以前 是 `tx_isolation`
+>    现在 是 `transaction_isolation`
+>
+>    解决办法：
+>
+>    - 在 pom.xml 文件中将 MySQL 驱动版本升级为 8：
+>
+>      MySQL 驱动的版本 必须与 MySQL 的版本 一致 。
+>
+>      ```xml
+>      <dependency>
+>          <groupId>mysql</groupId>
+>          <artifactId>mysql-connector-java</artifactId>
+>          <version>8.0.19</version>
+>      </dependency>
+>      ```
+>
+> 2. driver-class
+>
+>     MySQL 8 的 JDBC 的 `driver-class` 是 `com.mysql.cj.jdbc.Driver`，而不是~~`com.mysql.jdbc.Driver`~~。
+
+
+
+在 BrowserProperties 中去设置一个默认的记住我的时间，这个也是可以在配置文件中去配置的。默认我写了3600秒 。
+
+```java
+package com.yafey.security.core.properties;
+@Data
+public class BrowserProperties {
+	private String loginPage = "/self-login.html";
+	private LoginResponseType loginType = LoginResponseType.JSON;
+	private int rememberMeSecond = 3600;
+}
+```
+
+
+
+配置 BrowserSecurityConfig （`com.yafey.security.browser.BrowserSecurityConfig`）
+
+首先去配置 PersistentTokenRepository ，在这个里面将 dataSource 注入进去，然后在这个类中有一个 `tokenRepository.setCreateTableOnStartup(true);` 方法，这个方法会去 DB 中新建一个存储 token 和 用户名的 表，然后项目第一次启动之后，会自动地去 DB 中新建这个表，但是在之后就不能再把这个打开了，需要注释掉。
+
+```java
+    @Autowired
+    private DataSource dataSource;
+    
+    @Autowired
+    private UserDetailsService userDetailsService;
+
+    @Bean
+    public PersistentTokenRepository persistentTokenRepository(){
+        JdbcTokenRepositoryImpl tokenRepository = new JdbcTokenRepositoryImpl();
+        tokenRepository.setDataSource(dataSource);
+        // 数据库创建语句 ： CREATE DATABASE `imooc_c134` CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci';
+//    	/** Default SQL for creating the database table to store the tokens */
+//    	public static final String CREATE_TABLE_SQL = "create table persistent_logins (username varchar(64) not null, series varchar(64) primary key, "
+//    			+ "token varchar(64) not null, last_used timestamp not null)";
+          // 下面这条语句只能运行一次 ， 可以使用 上面的语句 创建数据库 和 表。
+//        tokenRepository.setCreateTableOnStartup(true); // 数据库中如果没有表的话 就创建。
+        return tokenRepository;
+    }
+```
+
+然后在 configure 方法中调用 rememberMe 服务，然后调用 tokenRepository 方法， 设置一个 cookie 有效时间，最后返回回去的时候调用 userDetailsService 这个服务，将用户信息返回给前台。
+
+```java
+		http
+        	.addFilterBefore(validateCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
+			.formLogin()  // 认证方式
+				.loginPage("/authentication/require") // 自定义 登陆页面
+		        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
+		        .successHandler(yafeyAuthentivationSuccessHandler)  // 配置成功处理器
+		        .failureHandler(yafeyAuthentivationFailureHandler)  // 配置失败处理器
+	        .and()
+            .rememberMe()  // 调用 rememberMe 方法 并进行配置
+	            .tokenRepository(persistentTokenRepository())
+	            .tokenValiditySeconds(securityProperties.getBrowser().getRememberMeSecond())
+	            .userDetailsService(userDetailsService)
+```
+
+访问 http://localhost:8080/self-login.html 进行登陆， 然后访问 Restful 接口 ， http://localhost:8080/usersWithParam 。
+
+即使 服务器 重启后（Session 清空了），Restful 接口依然能够正常访问。
+
+数据库中的 username 和 token 数据。
+
+![image-20200225172756368](README_images/4_and_7/image-20200225172756368.png)
+
