@@ -1,4 +1,4 @@
-package com.yafey.security.core.validate.code;
+package com.yafey.security.core.validate.code.image;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -11,6 +11,7 @@ import org.springframework.web.bind.ServletRequestUtils;
 import org.springframework.web.context.request.ServletWebRequest;
 
 import com.yafey.security.core.properties.SecurityProperties;
+import com.yafey.security.core.validate.code.ValidateCodeGenerator;
 
 import lombok.Getter;
 import lombok.Setter;

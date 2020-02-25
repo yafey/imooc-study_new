@@ -80,9 +80,9 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 	         .authorizeRequests()//对请求进行授权
 	         .antMatchers("/authentication/require",
 	        		 securityProperties.getBrowser().getLoginPage()
-	        		 ,"/code/image"
-	        		 ,"/code/sms"
-	        		 ,"/authentication/mobile"
+//	        		 ,"/code/image"
+//	        		 ,"/code/sms"
+	        		 ,"/code/*"
 	        		 ).permitAll() //登陆页面不需要校验
 	         .anyRequest()//任何请求
 	         .authenticated()//都需要身份认证

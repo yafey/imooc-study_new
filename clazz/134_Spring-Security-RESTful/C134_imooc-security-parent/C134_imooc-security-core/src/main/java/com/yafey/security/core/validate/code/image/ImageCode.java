@@ -1,7 +1,9 @@
-package com.yafey.security.core.validate.code;
+package com.yafey.security.core.validate.code.image;
 
 import java.awt.image.BufferedImage;
 import java.time.LocalDateTime;
+
+import com.yafey.security.core.validate.code.ValidateCode;
 
 import lombok.Getter;
 import lombok.Setter;

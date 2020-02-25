@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.yafey.security.core.properties.SecurityProperties;
+import com.yafey.security.core.validate.code.image.ImageCodeGenerator;
 import com.yafey.security.core.validate.code.sms.DefaultSmsCodeSender;
 import com.yafey.security.core.validate.code.sms.SmsCodeSender;
 
@@ -16,8 +17,8 @@ public class ValidateCodeBeanConfig {
 	private SecurityProperties securityProperties;
 	
 	@Bean
-	@ConditionalOnMissingBean(name = "imageValidateCodeGenerator")  // 如果在 Spring 容器中没有找到 name 的bean，再初始化 bean。
-	public ImageCodeGenerator imageValidateCodeGenerator() {
+	@ConditionalOnMissingBean(name = "imageCodeGenerator")  // 如果在 Spring 容器中没有找到 name 的bean，再初始化 bean。
+	public ImageCodeGenerator imageCodeGenerator() {
 		ImageCodeGenerator codeGenerator = new ImageCodeGenerator(); 
 		codeGenerator.setSecurityProperties(securityProperties);
 		return codeGenerator;

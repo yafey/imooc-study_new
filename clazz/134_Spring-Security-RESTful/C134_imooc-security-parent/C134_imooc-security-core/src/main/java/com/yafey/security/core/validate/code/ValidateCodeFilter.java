@@ -21,6 +21,7 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.yafey.security.core.properties.SecurityProperties;
+import com.yafey.security.core.validate.code.image.ImageCode;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -87,7 +88,7 @@ public class ValidateCodeFilter extends OncePerRequestFilter implements Initiali
      */
     public void validate(ServletWebRequest request) throws ServletRequestBindingException {
 
-        ImageCode codeInSession = (ImageCode) sessionStrategy.getAttribute(request,ValidateCodeController.SESSION_KEY);
+        ImageCode codeInSession = (ImageCode) sessionStrategy.getAttribute(request,ValidateCodeProcessor.SESSION_KEY_PREFIX + getProcessorType(request));
 
         String codeInRequest =  ServletRequestUtils.getStringParameter(request.getRequest(),"imageCode");
 
@@ -100,7 +101,7 @@ public class ValidateCodeFilter extends OncePerRequestFilter implements Initiali
         }
 
         if (codeInSession.isExpried()) {
-            sessionStrategy.removeAttribute(request, ValidateCodeController.SESSION_KEY);
+            sessionStrategy.removeAttribute(request, ValidateCodeProcessor.SESSION_KEY_PREFIX + getProcessorType(request));
             throw new ValidateCodeException( "验证码已过期");
         }
 
@@ -108,8 +109,16 @@ public class ValidateCodeFilter extends OncePerRequestFilter implements Initiali
             throw new ValidateCodeException("验证码不匹配");
         }
 
-        sessionStrategy.removeAttribute(request, ValidateCodeController.SESSION_KEY);
+        sessionStrategy.removeAttribute(request, ValidateCodeProcessor.SESSION_KEY_PREFIX + getProcessorType(request));
 
     }
+    
+	 /** 根据请求的url获取校验码的类型
+	 * @param request
+	 * @return
+	 */
+	private String getProcessorType(ServletWebRequest request) {
+		return StringUtils.substringAfter(request.getRequest().getRequestURI(), "/code/");
+	}
     
 }

@@ -1986,3 +1986,33 @@ public class BrowserProperties {
 #### 4.8.1. 开发短信验证码生成接口
 
 参考 图片验证码 方式， 具体 见 commit 。
+
+#### 4.8.2. 重构 验证码 生成接口
+
+使用 模板方法 的思想 分层 定义接口。
+
+![image-20200225211946664](README_images/4_and_7/image-20200225211946664.png)
+
+在 AbstractValidateCodeProcessor 中 定义 主干 流程。
+
+```java
+@Override
+public void create(ServletWebRequest request) throws Exception {
+    C validateCode = generate(request);
+    save(request, validateCode);
+    send(request, validateCode);
+}
+```
+
+**Spring 中常见的开发技巧：依赖查找。**
+
+image 和 sms 的 generator 都是 ValidateCodeGenerator 的 实现类， 当 Spring 在初始化的时候，看到 `Map<String, ValidateCodeGenerator>` 这样的结构，会查找所有 ValidateCodeGenerator 接口的 实现类，然后 将找到的 bean 以 bean name 为 key 放到 这个 Map 中。
+
+```java
+/**
+ * 收集系统中所有的 {@link ValidateCodeGenerator} 接口的实现。
+ */
+@Autowired
+private Map<String, ValidateCodeGenerator> validateCodeGenerators;
+```
+
