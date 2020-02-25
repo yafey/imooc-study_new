@@ -1972,3 +1972,17 @@ public class BrowserProperties {
 然后 RememberMeAuthenticationFilter 拿到了之后会将用户信息存入到 session 中去。
 
 ![image-20200225181846925](README_images/4_and_7/image-20200225181846925.png)
+
+
+
+### 4.8(4-10). 实现短信验证码登陆
+
+开发短信验证码生成接口 并 重构代码
+
+校验短信验证码并登陆
+
+重构代码
+
+#### 4.8.1. 开发短信验证码生成接口
+
+参考 图片验证码 方式， 具体 见 commit 。
