@@ -1937,3 +1937,38 @@ public class BrowserProperties {
 
 ![image-20200225172756368](README_images/4_and_7/image-20200225172756368.png)
 
+
+
+
+
+#### 4.7.3. 记住我功能 Spring Security 源码解析
+
+
+
+##### 1.登录解析
+
+首先，请求会进入 UsernamePasswordAuthenticationFilter 中，校验完用户名密码，将校验成功的结果放到 session 里面之后，会调用 rememberMeService 的 loginSuccess 方法。
+
+![image-20200225175309071](README_images/4_and_7/image-20200225175309071.png)
+
+在这个 loginSuccess 方法里面，它做了两件事，第一件事是用 tokenRepository 去创建一个新的 token 存入到数据库中。第二件是就是将生成的 token 存入到浏览器的 cookie 中去。
+
+![image-20200225180007912](README_images/4_and_7/image-20200225180007912.png)
+
+##### 2.在有 remeberMe 功能开启的情况下 再次登录解析
+
+现在浏览器中输入 url，然后请求进入到了 RememberMeAuthenticationFilter 过滤器中，它首先会判断 SecurityContextHolder 中是不是有一个认证过的 Authentication，如果没有就会去调用 rememberMeService 的 autoLogin 方法 。
+
+![image-20200225180531192](README_images/4_and_7/image-20200225180531192.png)
+
+
+
+在 autoLogin 方法中首先会从请求的 cookie 中拿到 token，然后再调用 getTokenForService 去数据库中去拿相应的 token 和用户名信息。如果 token 没值就会抛出异常，如果有值则会去进行判断（token是否过期等）。
+
+这些检查都通过了，最终会调用 getUserDetailsService 的 loadUserByUsername 方法。
+
+也就是说 用找到的 那个用户名 去调用 UserDetailService 去获取用户信息，最终返回到 RememberMeAuthenticationFilter。
+
+然后 RememberMeAuthenticationFilter 拿到了之后会将用户信息存入到 session 中去。
+
+![image-20200225181846925](README_images/4_and_7/image-20200225181846925.png)
