@@ -8,6 +8,6 @@ public class BrowserProperties {
 	private String loginPage = "/self-login.html";
 	private LoginResponseType loginType = LoginResponseType.JSON;
 	
-	private int rememberMeSecond = 3600;
+	private int rememberMeSeconds = 3600;
 
 }

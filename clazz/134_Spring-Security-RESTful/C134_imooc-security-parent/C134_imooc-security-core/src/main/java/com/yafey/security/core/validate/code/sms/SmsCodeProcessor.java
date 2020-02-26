@@ -5,13 +5,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.bind.ServletRequestUtils;
 import org.springframework.web.context.request.ServletWebRequest;
 
+import com.yafey.security.core.properties.SecurityConstants;
 import com.yafey.security.core.validate.code.ValidateCode;
 import com.yafey.security.core.validate.code.impl.AbstractValidateCodeProcessor;
 
 /**
  * 短信验证码处理器
  */
-@Component("smsCodeProcessor")
+@Component("smsValidateCodeProcessor")
 public class SmsCodeProcessor extends AbstractValidateCodeProcessor<ValidateCode> {
 
 	/**
@@ -22,7 +23,8 @@ public class SmsCodeProcessor extends AbstractValidateCodeProcessor<ValidateCode
 	
 	@Override
 	protected void send(ServletWebRequest request, ValidateCode validateCode) throws Exception {
-		String mobile = ServletRequestUtils.getRequiredStringParameter(request.getRequest(), "mobile");
+		String paramName = SecurityConstants.DEFAULT_PARAMETER_NAME_MOBILE;
+		String mobile = ServletRequestUtils.getRequiredStringParameter(request.getRequest(), paramName);
 		smsCodeSender.send(mobile, validateCode.getCode());
 	}
 

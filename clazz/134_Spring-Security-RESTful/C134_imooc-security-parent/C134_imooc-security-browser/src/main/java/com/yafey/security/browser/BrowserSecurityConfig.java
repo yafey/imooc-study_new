@@ -6,41 +6,36 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 
+import com.yafey.security.core.authentication.AbstractChannelSecurityConfig;
 import com.yafey.security.core.authentication.mobile.SmsCodeAuthenticationSecurityConfig;
+import com.yafey.security.core.properties.SecurityConstants;
 import com.yafey.security.core.properties.SecurityProperties;
-import com.yafey.security.core.validate.code.SmsCodeFilter;
-import com.yafey.security.core.validate.code.ValidateCodeFilter;
+import com.yafey.security.core.validate.code.ValidateCodeSecurityConfig;
 
 @Configuration
-public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
+public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 
 	@Autowired
 	private SecurityProperties securityProperties;
 	
-    @Autowired
-    private AuthenticationSuccessHandler yafeyAuthentivationSuccessHandler;
-
-    @Autowired
-    private YafeyAuthentivationFailureHandler yafeyAuthentivationFailureHandler;
-    
-    @Autowired
-    private DataSource dataSource;
-    
-    @Autowired
-    private UserDetailsService userDetailsService;
-    
-    @Autowired
-    private SmsCodeAuthenticationSecurityConfig smsCodeAuthenticationSecurityConfig;
-
+	@Autowired
+	private DataSource dataSource;
+	
+	@Autowired
+	private UserDetailsService userDetailsService;
+	
+	@Autowired
+	private SmsCodeAuthenticationSecurityConfig smsCodeAuthenticationSecurityConfig;
+	
+	@Autowired
+	private ValidateCodeSecurityConfig validateCodeSecurityConfig;
+	
     @Bean
     public PersistentTokenRepository persistentTokenRepository(){
         JdbcTokenRepositoryImpl tokenRepository = new JdbcTokenRepositoryImpl();
@@ -54,53 +49,38 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
         return tokenRepository;
     }
     
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-    
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
-        
-		ValidateCodeFilter validateCodeFilter = new ValidateCodeFilter();
-        // 设置 filter 的失败 处理器
-        validateCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler)
-        					.setSecurityProperties(securityProperties)
-        					.afterPropertiesSet(); // 配置初始化
-        SmsCodeFilter smsCodeFilter = new SmsCodeFilter();
-        // 设置 filter 的失败 处理器
-        smsCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler)
-        					.setSecurityProperties(securityProperties)
-        					.afterPropertiesSet(); // 配置初始化
-        
-		http
-			.addFilterBefore(smsCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
-        	.addFilterBefore(validateCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
-			.formLogin()  // 认证方式
-				.loginPage("/authentication/require") // 自定义 登陆页面
-		        .loginProcessingUrl("/authentication/form") // 自定义表单 处理请求，伪造的请求
-		        .successHandler(yafeyAuthentivationSuccessHandler)  // 配置成功处理器
-		        .failureHandler(yafeyAuthentivationFailureHandler)  // 配置失败处理器
-	        .and()
-            .rememberMe()  // 调用 rememberMe 方法 并进行配置
-	            .tokenRepository(persistentTokenRepository())
-	            .tokenValiditySeconds(securityProperties.getBrowser().getRememberMeSecond())
-	            .userDetailsService(userDetailsService)
-//		http.httpBasic()
-	         // 授权 , 以下表示 任何请求都需要 校验
-	         .and()
-	         .authorizeRequests()//对请求进行授权
-	         .antMatchers("/authentication/require",
-	        		 securityProperties.getBrowser().getLoginPage()
-//	        		 ,"/code/image"
-//	        		 ,"/code/sms"
-	        		 ,"/code/*"
-	        		 ).permitAll() //登陆页面不需要校验
-	         .anyRequest()//任何请求
-	         .authenticated()//都需要身份认证
-	         .and()
-	         .csrf().disable() // 关闭 跨站请求伪造 防护。
-	         .apply(smsCodeAuthenticationSecurityConfig) // apply 方法 将 其他地方的配置加到这里来， 使之生效。
-	         ;  
+		
+		applyPasswordAuthenticationConfig(http);
+		
+		http.apply(validateCodeSecurityConfig)
+				.and()
+			.apply(smsCodeAuthenticationSecurityConfig)  // apply 方法 将 其他地方的配置加到这里来， 使之生效。
+				.and()
+			.rememberMe()
+				.tokenRepository(persistentTokenRepository())
+				.tokenValiditySeconds(securityProperties.getBrowser().getRememberMeSeconds())
+				.userDetailsService(userDetailsService)
+				.and()
+			.authorizeRequests() // 授权 ,除了不需要校验的，其他请求都需要校验
+				.antMatchers(
+					SecurityConstants.DEFAULT_UNAUTHENTICATION_URL,
+					SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_MOBILE,
+					securityProperties.getBrowser().getLoginPage(),
+					SecurityConstants.DEFAULT_VALIDATE_CODE_URL_PREFIX+"/*"
+					,"/code/sms"
+						).permitAll()  //登陆页面 及 配置的 url 不需要校验
+				.anyRequest()     //任何请求
+				.authenticated()  //都需要身份认证
+				.and()
+			.csrf().disable()     // 关闭 跨站请求伪造 防护。
+			;
 	}
+
+	@Bean
+	public PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder();
+	}
+	
 }

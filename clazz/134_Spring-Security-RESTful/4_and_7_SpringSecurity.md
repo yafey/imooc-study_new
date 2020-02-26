@@ -2360,3 +2360,6 @@ protected void configure(HttpSecurity http) throws Exception {
 
 
 
+#### 4.8.4. 重构代码（系统配置）
+
+![image-20200226154305023](README_images/4_and_7/image-20200226154305023.png)

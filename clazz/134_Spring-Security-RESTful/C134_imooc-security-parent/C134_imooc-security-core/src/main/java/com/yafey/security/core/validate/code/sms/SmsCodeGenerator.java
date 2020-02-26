@@ -12,7 +12,7 @@ import com.yafey.security.core.validate.code.ValidateCodeGenerator;
 import lombok.Getter;
 import lombok.Setter;
 
-@Component("smsCodeGenerator")
+@Component("smsValidateCodeGenerator")
 public class SmsCodeGenerator implements ValidateCodeGenerator {
 
 	/**

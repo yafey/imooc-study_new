@@ -10,7 +10,7 @@ import com.yafey.security.core.validate.code.impl.AbstractValidateCodeProcessor;
 /**
  * 图片验证码处理器
  */
-@Component("imageCodeProcessor")
+@Component("imageValidateCodeProcessor")
 public class ImageCodeProcessor extends AbstractValidateCodeProcessor<ImageCode> {
 
 	/**

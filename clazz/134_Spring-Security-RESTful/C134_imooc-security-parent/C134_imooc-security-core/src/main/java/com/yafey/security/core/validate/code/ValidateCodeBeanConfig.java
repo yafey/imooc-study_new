@@ -17,8 +17,8 @@ public class ValidateCodeBeanConfig {
 	private SecurityProperties securityProperties;
 	
 	@Bean
-	@ConditionalOnMissingBean(name = "imageCodeGenerator")  // 如果在 Spring 容器中没有找到 name 的bean，再初始化 bean。
-	public ImageCodeGenerator imageCodeGenerator() {
+	@ConditionalOnMissingBean(name = "imageValidateCodeGenerator")   // 如果在 Spring 容器中没有找到 name 的bean，再初始化 bean。
+	public ValidateCodeGenerator imageValidateCodeGenerator() {
 		ImageCodeGenerator codeGenerator = new ImageCodeGenerator(); 
 		codeGenerator.setSecurityProperties(securityProperties);
 		return codeGenerator;
