@@ -2016,3 +2016,347 @@ image 和 sms 的 generator 都是 ValidateCodeGenerator 的 实现类， 当 Sp
 private Map<String, ValidateCodeGenerator> validateCodeGenerators;
 ```
 
+
+
+#### 4.8.3. 校验 短信验证码 并登陆
+
+Spring Security 处理 **密码登陆请求** 的 主要步骤：
+
+1. `UsernamePasswordAuthenticationFilter` 过滤器 拦截 密码登陆请求 （ 自定义的url：`/authentication/form`，默认为 `/login`）。
+2. 过滤器从请求中 获取用户名和密码， 构建一个 `UsernamePasswordAuthenticationToken（未认证）` 对象，传给 `AuthenticationManager`。
+3. `AuthenticationManager` 会从一堆 `AuthenticationProvider`里面挑一个来处理认证请求， 挑选的依据是依据 `provider.supports` 方法 来判断 当前的 provider 是否支持 处理 传入的 token。
+4. 如果 支持，就会用 这个 provider  来认证 这个 Token，在认证的过程中， 会调用 `UserDetailService` 来 获取 用户的信息（UserDetails），然后跟 请求中的 用户名、密码 进行比对，判断是否可以认证通过。
+5.  最终认证通过的话，会将 Token 标记成 Authenticated，返回一个 认证成功的 `Authentication（已认证）`。
+6. 然后将 `Authentication（已认证）` 放到 session 里面。
+
+
+
+---
+
+短信验证码 登陆 模仿上面的流程，创建 4 个东西。
+
+1.  `SmsAuthenticationFilter` 过滤器。
+
+   和  `UsernamePasswordAuthenticationFilter` 过滤器的功能 类似， 这里 拦截的是 **`短信登陆请求`** (`/authentication/mobile`)。
+
+2. 过滤器 从请求中获取 手机号，然后封装成 一个 我们自己写的 `SmsAuthenticationToken（未认证）` 对象。
+
+3. 将 SmsToken 传给 `AuthenticationManager` 。
+
+4. 新建 一个 `SmsAuthenticationProvider` 用于校验 SmsToken 里面的手机号信息。
+
+5. 校验过程中 根据手机号 调用 `UserDetailService` 来 获取 用户的信息（UserDetails）。
+
+6. 如果校验通过， 将 SmsToken 标记成 Authenticated，返回一个 认证成功的 `Authentication（已认证）`。 
+
+
+
+上面的流程里面不会验证 短信 验证码。就像 图形验证码 过滤器 在 `UsernamePasswordAuthenticationFilter`  过滤器 之前，我们也在 `SmsAuthenticationFilter` 过滤器之前 新建一个 过滤器 用来验证 短信验证码，这样可以提供给 其他功能使用。
+
+
+
+参考 UsernamePasswordAuthenticationToken ， 新建 SmsCodeAuthenticationToken。
+
+principal 字段 认证前 放手机号，认证后 放 用户信息。 
+
+手机验证码登陆时，没有密码，所以这里不需要 credentials 这个字段。 
+
+```java
+package com.yafey.security.core.authentication.mobile;
+
+// 参考 UsernamePasswordAuthenticationToken
+public class SmsCodeAuthenticationToken extends AbstractAuthenticationToken {
+
+	private static final long serialVersionUID = SpringSecurityCoreVersion.SERIAL_VERSION_UID;
+
+	// principal 字段 认证前 放手机号，认证后 放 用户信息。
+	private final Object principal;
+	
+//	private Object credentials; // 手机验证码登陆时，没有密码，所以这里不需要 这个字段。 
+
+	public SmsCodeAuthenticationToken(String mobile) {
+		super(null);
+		this.principal = mobile;
+		setAuthenticated(false);
+	}
+
+	public SmsCodeAuthenticationToken(Object principal,
+			Collection<? extends GrantedAuthority> authorities) {
+		super(authorities);
+		this.principal = principal;
+		super.setAuthenticated(true); // must use super, as we override
+	}
+	... 其他代码...
+}
+```
+
+参考 UsernamePasswordAuthenticationFilter， 新建 SmsCodeAuthenticationFilter 。
+
+将 SmsToken 传给 `AuthenticationManager` 。
+
+```java
+package com.yafey.security.core.authentication.mobile;
+
+// 参考 UsernamePasswordAuthenticationFilter
+public class SmsCodeAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
+
+	public static final String YAFEY_FORM_MOBILE_KEY = "mobile";
+	private String mobileParameter = YAFEY_FORM_MOBILE_KEY;
+	private boolean postOnly = true;
+
+	public SmsCodeAuthenticationFilter() {
+		super(new AntPathRequestMatcher("/authentication/mobile", "POST"));
+	}
+
+	public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
+			throws AuthenticationException {
+		if (postOnly && !request.getMethod().equals("POST")) {
+			throw new AuthenticationServiceException("Authentication method not supported: " + request.getMethod());
+		}
+
+		String mobile = obtainMobile(request);
+
+		if (mobile == null) {
+			mobile = "";
+		}
+
+		mobile = mobile.trim();
+
+		SmsCodeAuthenticationToken authRequest = new SmsCodeAuthenticationToken(mobile);
+
+		// Allow subclasses to set the "details" property
+		setDetails(request, authRequest);
+
+		// #3. 将 SmsToken 传给 `AuthenticationManager` 。
+		return this.getAuthenticationManager().authenticate(authRequest);
+	}
+
+	/**
+	 * 获取手机号
+	 */
+	protected String obtainMobile(HttpServletRequest request) {
+		return request.getParameter(mobileParameter);
+	}
+
+	protected void setDetails(HttpServletRequest request, SmsCodeAuthenticationToken authRequest) {
+		authRequest.setDetails(authenticationDetailsSource.buildDetails(request));
+	}
+
+	public void setMobileParameter(String usernameParameter) {
+		Assert.hasText(usernameParameter, "Username parameter must not be empty or null");
+		this.mobileParameter = usernameParameter;
+	}
+
+	public void setPostOnly(boolean postOnly) {
+		this.postOnly = postOnly;
+	}
+
+	public final String getMobileParameter() {
+		return mobileParameter;
+	}
+
+}
+```
+
+新建 SmsCodeAuthenticationProvider 。
+
+实现 support 方法（判断传入的 是不是 SmsCodeAuthenticationToken 类型） 和 authenticate 方法（根据 手机号 获取用户信息， 并构建一个 已认证的 token ）。 
+
+```java
+package com.yafey.security.core.authentication.mobile;
+
+public class SmsCodeAuthenticationProvider implements AuthenticationProvider {
+
+	private UserDetailsService userDetailsService;
+
+	@Override
+	public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+		// 根据 手机号 获取用户信息， 并构建一个 已认证的 token 。
+		SmsCodeAuthenticationToken authenticationToken = (SmsCodeAuthenticationToken) authentication;
+		
+		UserDetails user = userDetailsService.loadUserByUsername((String) authenticationToken.getPrincipal());
+
+		if (user == null) {
+			throw new InternalAuthenticationServiceException("无法获取用户信息");
+		}
+		
+		SmsCodeAuthenticationToken authenticationResult = new SmsCodeAuthenticationToken(user, user.getAuthorities());
+		
+		// 将 未认证 token 里面的信息 copy 到 已认证 的 Token 中
+		authenticationResult.setDetails(authenticationToken.getDetails());
+
+		return authenticationResult;
+	}
+
+	@Override
+	public boolean supports(Class<?> authentication) {
+		// 判断传入的 是不是 SmsCodeAuthenticationToken 类型。
+		return SmsCodeAuthenticationToken.class.isAssignableFrom(authentication);
+	}
+
+	public UserDetailsService getUserDetailsService() {
+		return userDetailsService;
+	}
+
+	public void setUserDetailsService(UserDetailsService userDetailsService) {
+		this.userDetailsService = userDetailsService;
+	}
+}
+```
+
+参考 ValidateCodeFilter ，新建 SmsCodeFilter ， 拦截 并 校验 短信验证码。
+
+```java
+package com.yafey.security.core.validate.code;
+
+@Accessors(chain = true)
+// OncePerRequestFilter 是 Security 的一个工具类，来保证我们的 filter 只会被调用一次。
+public class SmsCodeFilter extends OncePerRequestFilter implements InitializingBean {
+
+	@Setter @Getter
+    private AuthenticationFailureHandler authenticationFailureHandler;
+
+    private SessionStrategy sessionStrategy = new HttpSessionSessionStrategy();
+    
+	@Setter @Getter
+    private SecurityProperties securityProperties;
+    
+    private Set<String> urlSet = new HashSet<>();
+    
+	/**
+	 * Spring 验证请求url与配置的url是否匹配的工具类
+	 */
+	private AntPathMatcher pathMatcher = new AntPathMatcher();
+
+
+    @Override
+    public void afterPropertiesSet() throws ServletException {
+    	super.afterPropertiesSet();
+    	String[] configUrls = StringUtils.splitByWholeSeparatorPreserveAllTokens(securityProperties.getCode().getSms().getUrl(), ",");
+		for (String url : configUrls) {
+			urlSet.add(url);
+		}
+		urlSet.add("/authentication/mobile");
+    }
+    
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+    		HttpServletResponse httpServletResponse, FilterChain filterChain) 
+    		throws ServletException, IOException {
+    	
+    	boolean action = false;
+    	for (String url : urlSet) {
+			if(pathMatcher.match(url, request.getRequestURI())) { // 如果请求中匹配到配置中任意一个 uri,就需要校验。
+				action = true;
+			}
+		}
+    	
+        if (action){
+            try {
+                validate(new ServletWebRequest(request));
+            }catch (ValidateCodeException e){
+                authenticationFailureHandler.onAuthenticationFailure(request,httpServletResponse,e);
+                return ; // 如果校验失败了，不再经过后续的过滤器。
+            }
+        }
+
+        filterChain.doFilter(request,httpServletResponse);
+
+    }
+
+    /**
+     * 校验逻辑
+     * @param
+     */
+    public void validate(ServletWebRequest request) throws ServletRequestBindingException {
+
+        ImageCode codeInSession = (ImageCode) sessionStrategy.getAttribute(request,ValidateCodeProcessor.SESSION_KEY_PREFIX + "SMS");
+
+        String codeInRequest =  ServletRequestUtils.getStringParameter(request.getRequest(),"smsCode");
+
+        if (StringUtils.isBlank(codeInRequest)) {
+            throw new ValidateCodeException("验证码的值不能为空");
+        }
+
+        if (codeInSession == null) {
+            throw new ValidateCodeException( "验证码不存在");
+        }
+
+        if (codeInSession.isExpried()) {
+            sessionStrategy.removeAttribute(request, ValidateCodeProcessor.SESSION_KEY_PREFIX + "SMS");
+            throw new ValidateCodeException( "验证码已过期");
+        }
+
+        if (!StringUtils.equals(codeInSession.getCode(), codeInRequest)) {
+            throw new ValidateCodeException("验证码不匹配");
+        }
+
+        sessionStrategy.removeAttribute(request, ValidateCodeProcessor.SESSION_KEY_PREFIX + "SMS");
+
+    }
+}
+```
+
+配置 Spring Security 的 config ， 这里单独写在 core 里面， browser 里面要用的 时候， 通过 apply 方法 引用。
+
+```java
+package com.yafey.security.core.authentication.mobile;
+
+@Component
+public class SmsCodeAuthenticationSecurityConfig extends SecurityConfigurerAdapter<DefaultSecurityFilterChain, HttpSecurity> {
+	
+	@Autowired
+	private AuthenticationSuccessHandler yafeyAuthenticationSuccessHandler;
+	
+	@Autowired
+	private AuthenticationFailureHandler yafeyAuthenticationFailureHandler;
+	
+	@Autowired
+	private UserDetailsService userDetailsService;
+	
+	@Override
+	public void configure(HttpSecurity http) throws Exception {
+		
+		SmsCodeAuthenticationFilter smsCodeAuthenticationFilter = new SmsCodeAuthenticationFilter();
+		smsCodeAuthenticationFilter.setAuthenticationManager(http.getSharedObject(AuthenticationManager.class));
+		smsCodeAuthenticationFilter.setAuthenticationSuccessHandler(yafeyAuthenticationSuccessHandler);
+		smsCodeAuthenticationFilter.setAuthenticationFailureHandler(yafeyAuthenticationFailureHandler);
+		
+		SmsCodeAuthenticationProvider smsCodeAuthenticationProvider = new SmsCodeAuthenticationProvider();
+		smsCodeAuthenticationProvider.setUserDetailsService(userDetailsService);
+		
+		http.authenticationProvider(smsCodeAuthenticationProvider)
+			.addFilterAfter(smsCodeAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+		
+	}
+
+}
+```
+
+BrowserSecurityConfig 中 使用 apply 方法 引用上述配置，使之生效。
+
+```java
+@Autowired
+private SmsCodeAuthenticationSecurityConfig smsCodeAuthenticationSecurityConfig;
+
+@Override
+protected void configure(HttpSecurity http) throws Exception {
+
+	// 设置 filter 的失败 处理器
+	smsCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler)
+						.setSecurityProperties(securityProperties)
+						.afterPropertiesSet(); // 配置初始化
+	
+	http
+		.addFilterBefore(smsCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
+		.addFilterBefore(validateCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
+		.formLogin()  // 认证方式
+        ... 其他设置...
+        .apply(smsCodeAuthenticationSecurityConfig) // apply 方法 将 其他地方的配置加到这里来， 使之生效。
+	;
+	... 其他代码 ...
+}
+```
+
+
+

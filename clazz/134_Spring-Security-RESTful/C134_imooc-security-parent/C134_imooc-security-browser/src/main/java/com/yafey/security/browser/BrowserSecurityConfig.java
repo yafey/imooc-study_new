@@ -15,7 +15,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 
+import com.yafey.security.core.authentication.mobile.SmsCodeAuthenticationSecurityConfig;
 import com.yafey.security.core.properties.SecurityProperties;
+import com.yafey.security.core.validate.code.SmsCodeFilter;
 import com.yafey.security.core.validate.code.ValidateCodeFilter;
 
 @Configuration
@@ -35,6 +37,9 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
     
     @Autowired
     private UserDetailsService userDetailsService;
+    
+    @Autowired
+    private SmsCodeAuthenticationSecurityConfig smsCodeAuthenticationSecurityConfig;
 
     @Bean
     public PersistentTokenRepository persistentTokenRepository(){
@@ -56,13 +61,20 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
     
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
-        ValidateCodeFilter validateCodeFilter = new ValidateCodeFilter();
+        
+		ValidateCodeFilter validateCodeFilter = new ValidateCodeFilter();
         // 设置 filter 的失败 处理器
         validateCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler)
         					.setSecurityProperties(securityProperties)
         					.afterPropertiesSet(); // 配置初始化
+        SmsCodeFilter smsCodeFilter = new SmsCodeFilter();
+        // 设置 filter 的失败 处理器
+        smsCodeFilter.setAuthenticationFailureHandler(yafeyAuthentivationFailureHandler)
+        					.setSecurityProperties(securityProperties)
+        					.afterPropertiesSet(); // 配置初始化
         
 		http
+			.addFilterBefore(smsCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
         	.addFilterBefore(validateCodeFilter, UsernamePasswordAuthenticationFilter.class) // 将 filter 加在 某个过滤器 之前
 			.formLogin()  // 认证方式
 				.loginPage("/authentication/require") // 自定义 登陆页面
@@ -88,6 +100,7 @@ public class BrowserSecurityConfig extends WebSecurityConfigurerAdapter {
 	         .authenticated()//都需要身份认证
 	         .and()
 	         .csrf().disable() // 关闭 跨站请求伪造 防护。
+	         .apply(smsCodeAuthenticationSecurityConfig) // apply 方法 将 其他地方的配置加到这里来， 使之生效。
 	         ;  
 	}
 }
