@@ -905,11 +905,13 @@ SocialAuthenticationFilter 默认会拦截 `/auth` 开头的链接，qq 是 Prov
 
    使用 www.pinzhi365.com/self-login.html , 因为修改了 hosts, 所以访问的还是 本地的 服务。
 
-   查看日志， 发现会访问 signIn 地址， 因为这个地址没有 排除掉，所以跳到了需要授权的页面。
+   > 查看日志， 发现会访问 signIn 地址， 因为这个地址没有 排除掉，所以跳到了需要授权的页面。
+   >
+   > ```
+   > 引发跳转的请求是: http://www.pinzhi365.com/signin
+   > ```
 
-   ```
-   引发跳转的请求是: http://www.pinzhi365.com/signin
-   ```
+   
 
    ![social-qq-2.gif](README_images/5/social-qq-2.gif)
 
@@ -950,5 +952,96 @@ PS：
 
 
 
+### 5.4.3. Spring Social 流程源码分析
+
+我们来回想下刚才流程出错的场景：我们已经 跳到 QQ 上，手机扫码了，说明我们已经进行 授权的确认了，确认后，跳回到了我们的 第三方应用。但是它并没有像 我们想象的那样 --- 进到系统里面去，而是跳到了 signin 的 url 上去。所以我们出问题的点 还是在 走 OAuth 的流程中出现的问题（也就是说我们最终 还没有 获取到一个正确 SocialAuthenticationToken 交给 AuthenticationManager 去验证，而是在 OAuth2AuthenticationService 去走 OAuth 流程的过程中出现了问题）。
 
 
+
+OAuth2AuthenticationService，它是 SocialAuthenticationFilter 的关键 service，在这里我们主要是简单讲讲它的原理。这个 service 中有一个 getAuthToken 方法。
+
+因为第三步中 QQ 会返回授权码 code，如果发现 没有这个 code，SpringSocial 会认为是第一步，也就是要去授权认证，因此会作重定向。但是如果我们发现我们得到了 code，这个时候我们就会利用 code 去拿 token 信息。
+
+我们在 L98 和 L103 分别打断点，看看发生了什么。
+
+我们可以看到 这里抛出了一个 RestClientException 异常，异常信息为 ：`No avaiable HttpMessageConventer found for response [Map] and content type [text/html]` ，然后 跑到 unsuccessfulAuthentication ，即交给 Social 的 失败处理器 处理。
+
+
+
+![image-20200301194736270](README_images/5/image-20200301194736270.png)
+
+
+
+查看 SocialAuthenticationFilter ， 默认的 失败处理器 的处理是 重定向到 DEFAULT_FAILURE_URL （/signin）的 url 上。
+
+```java
+package org.springframework.social.security;
+public class SocialAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
+
+	private SimpleUrlAuthenticationFailureHandler delegateAuthenticationFailureHandler;
+
+	public SocialAuthenticationFilter(AuthenticationManager authManager, UserIdSource userIdSource, UsersConnectionRepository usersConnectionRepository, SocialAuthenticationServiceLocator authServiceLocator) {
+		super(DEFAULT_FILTER_PROCESSES_URL);
+		setAuthenticationManager(authManager);
+		this.userIdSource = userIdSource;
+		this.usersConnectionRepository = usersConnectionRepository;
+		this.authServiceLocator = authServiceLocator;
+		this.delegateAuthenticationFailureHandler = new SimpleUrlAuthenticationFailureHandler(DEFAULT_FAILURE_URL);
+		super.setAuthenticationFailureHandler(new SocialAuthenticationFailureHandler(delegateAuthenticationFailureHandler));
+	}
+	
+	private static final String DEFAULT_FAILURE_URL = "/signin";
+	
+	private static final String DEFAULT_FILTER_PROCESSES_URL = "/auth";
+	
+	... 其他代码 ...
+}
+```
+
+默认的 OAuth2Template 中没有 处理 `text/html` 的 converter, 所以我们要 覆盖掉下面的方法，让它可以处理 `text/html`。
+
+![image-20200301222046507](README_images/5/image-20200301222046507.png)
+
+新建 QQOAuth2Template ，
+
+```java
+package com.yafey.security.core.social.qq.connect;
+
+@Slf4j
+public class QQOAuth2Template extends OAuth2Template {
+	
+	public QQOAuth2Template(String clientId, String clientSecret, String authorizeUrl, String accessTokenUrl) {
+		super(clientId, clientSecret, authorizeUrl, accessTokenUrl);
+		// 默认为 false ， 只有设置为 true 的时候才会传 clientId 和 clientSecret。 
+		// 详见 org.springframework.social.oauth2.OAuth2Template.authenticateClient(String)
+		 setUseParametersForClientAuthentication(true); 
+	}
+	
+	// 解析 QQ 的 response，详见 org.springframework.social.oauth2.OAuth2Template.postForAccessGrant(String, MultiValueMap<String, String>)
+	@Override
+	protected AccessGrant postForAccessGrant(String accessTokenUrl, MultiValueMap<String, String> parameters) {
+		 String responseStr = getRestTemplate().postForObject(accessTokenUrl, parameters, String.class);
+		 
+		 log.info("获取accessToke的响应："+responseStr);
+		 
+		 String[] items = StringUtils.splitByWholeSeparatorPreserveAllTokens(responseStr, "&");
+		 
+		 String accessToken = StringUtils.substringAfterLast(items[0], "=");
+		 Long expiresIn = new Long(StringUtils.substringAfterLast(items[1], "="));
+		 String refreshToken = StringUtils.substringAfterLast(items[2], "=");
+		 
+		 return new AccessGrant(accessToken, null, refreshToken, expiresIn);
+	}
+	
+	// 增加 处理 content type 为 “text/html” 格式的 MessageConverter 
+	@Override
+	protected RestTemplate createRestTemplate() {
+		 RestTemplate restTemplate = super.createRestTemplate();
+		 restTemplate.getMessageConverters().add(new StringHttpMessageConverter(Charset.forName("UTF-8")));
+		 return restTemplate;
+	}
+
+}
+```
+
+然后 在 QQServiceProvider 中， 使用 QQOAuth2Template 替换 默认的 OAuth2Template 。

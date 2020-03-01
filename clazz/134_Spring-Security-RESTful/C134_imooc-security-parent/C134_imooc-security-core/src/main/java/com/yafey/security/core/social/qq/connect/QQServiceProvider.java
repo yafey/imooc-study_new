@@ -17,7 +17,7 @@ public class QQServiceProvider extends AbstractOAuth2ServiceProvider<QQ> {
 		// 其中 appId 和 appSecret 是QQ分配给我们的。因为每个调用我们模块的这两个参数都不一样，所以需要传进来。
 		// URL_AUTHORIZE 表示我们引导用户跳转的授权页面，对应步骤1。
 		// URL_ACCESS_TOKEN 对应步骤4，表示去获取 token。
-		super(new QQOAuth2Template(appId, appSecret, URL_AUTHORIZE, URL_ACCESS_TOKEN));
+		super(new  QQOAuth2Template(appId, appSecret, URL_AUTHORIZE, URL_ACCESS_TOKEN));
 		this.appId = appId;
 	}
 	
