@@ -1170,7 +1170,10 @@ public class QQOAuth2Template extends OAuth2Template {
    ,"/user/regist"
    ```
 
-   
 
-8. 
 
+### 5.4.5. 从 session中获取 Connection 信息
+
+在 重定向到 注册页面 之前，Spring Social 会将 Connection 放到 session 中， 因此，在注册页面我们可以从 session 中 取出 用户 在 服务提供商 的信息。相关操作可以使用 providerSignInUtils 类。
+
+![image-20200302001417579](README_images/5/image-20200302001417579.png)
