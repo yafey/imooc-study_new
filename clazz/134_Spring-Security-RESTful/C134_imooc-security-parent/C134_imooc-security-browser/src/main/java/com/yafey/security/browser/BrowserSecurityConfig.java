@@ -11,6 +11,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.social.security.SpringSocialConfigurer;
 
 import com.yafey.security.core.authentication.AbstractChannelSecurityConfig;
 import com.yafey.security.core.authentication.mobile.SmsCodeAuthenticationSecurityConfig;
@@ -36,6 +37,9 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 	@Autowired
 	private ValidateCodeSecurityConfig validateCodeSecurityConfig;
 	
+	@Autowired
+	private SpringSocialConfigurer yafeySocialSecurityConfig;
+	
     @Bean
     public PersistentTokenRepository persistentTokenRepository(){
         JdbcTokenRepositoryImpl tokenRepository = new JdbcTokenRepositoryImpl();
@@ -58,6 +62,8 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 				.and()
 			.apply(smsCodeAuthenticationSecurityConfig)  // apply 方法 将 其他地方的配置加到这里来， 使之生效。
 				.and()
+			.apply(yafeySocialSecurityConfig) // 添加 social 的配置
+				.and()
 			.rememberMe()
 				.tokenRepository(persistentTokenRepository())
 				.tokenValiditySeconds(securityProperties.getBrowser().getRememberMeSeconds())
@@ -69,7 +75,6 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 					SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_MOBILE,
 					securityProperties.getBrowser().getLoginPage(),
 					SecurityConstants.DEFAULT_VALIDATE_CODE_URL_PREFIX+"/*"
-					,"/code/sms"
 						).permitAll()  //登陆页面 及 配置的 url 不需要校验
 				.anyRequest()     //任何请求
 				.authenticated()  //都需要身份认证

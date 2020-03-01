@@ -30,3 +30,8 @@ yafey:
         length: 6
         width: 100
         url: /users,/user/*
+    social:
+      qq:
+        app-id: 
+        app-secret: 
+        providerId: qq

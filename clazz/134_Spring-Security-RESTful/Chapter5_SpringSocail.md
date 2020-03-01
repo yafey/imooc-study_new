@@ -7,6 +7,16 @@ typora-copy-images-to: ./README_images/5
 
 [返回](./README.md)
 
+<details>
+  <summary>点击时的区域标题</summary>
+  <p> - 测试 测试测试</p>
+  <p> 测试二 测试三 。。。。。 .</p>
+  ```
+    我是代码块1。我是代码块2。
+  ```
+</details>
+
+
 # 第5章 使用 Spring Social 开发第三方登录
 
 > 参考、整理自：
@@ -206,7 +216,7 @@ typora-copy-images-to: ./README_images/5
 
 > Spring Social 是如何将上面的 流程 封装到 特定的接口和类中去的？以及这些接口和类的调用关系。
 
-![image-20200227234552236](README_images/5/image-20200227234552236.png)
+![5.2.2. Spring Social 接口说明](README_images/5/image-20200227234552236.png "5.2.2. Spring Social 接口说明")
 
 #### 服务提供商相关
 
@@ -268,4 +278,534 @@ typora-copy-images-to: ./README_images/5
 在 Spring Social 中， **这个对应关系 是存在 数据库中的**。数据库中有一张 **UserConnection 表**，里面有 **业务系统的 userId 以及 服务提供商 的 Connection 之间的 对应关系**。
 
 那么由谁来 操纵 这个 UserConnection  表呢？就是由 **UsersConnectionRepository**存储器 去实现的。在代码中用到的 实现类 叫做 **JdbcUsersConnectionRepository**, 这个类的作用就是 去数据库中 针对 用户 对应关系表 去做一些增删改查的操作。
+
+
+
+## 5.3. 开发 QQ 登陆
+
+> 参考 整理自： https://www.jianshu.com/p/6220b2745b24
+
+![5.2.2. Spring Social 接口说明](README_images/5/image-20200227234552236.png "5.2.2. Spring Social 接口说明")
+
+- 关键是要做一个 OAuth 流程， 拿到 服务提供商 QQ 的 用户信息，它是封装在 Connection 中的。
+- 要创建 Connection， 需要一个 ConnectionFactory（OAuth2ConnectionFactory）这么一个工厂。
+- 要构建 ConnectionFactory， 需要 2 个东西：ServiceProvider（服务提供商） 和 ApiAdapter （API 适配器）。 
+- 要构建 ServiceProvider ， 也需要 2 个东西：OAuth2Operations （Spring Social 提供了一个 OAuth2Template 的默认实现） 和 Api（用来获取用户信息，它是跟 服务提供商 紧密相关的，每个 服务提供商 都不一样。我们从 Api 作为切入点 入手 进行实现）。
+
+
+
+### 5.3.1. 整个开发流程如下：
+
+1. 先写 Api 的实现。(获取用户信息 的 实现。)
+2. 用默认的 OAuth2Template 作为 OAuth2Operations 的一个实现。
+3. 然后用 上面的 2 个 东西（Api 和 OAuth2Operations ） 构建出 一个 ServiceProvider 。
+4. 然后去实现 ApiAdapter。
+5. 有了 ServiceProvider  和 ApiAdapter ， 就可以构建 ConnectionFactory 。
+6. 然后就可以拿到 服务提供商 的 用户信息（Connection）了。
+7. 在 数据库中创建 UserConnection  表，然后配置下 告诉 JdbcUsersConnectionRepository 数据库的信息 就可以了。
+
+
+
+-----
+
+因为这个可以在 browser 和 app 都可以使用，所以也写在 core 里面。
+
+#### 5.3.1.1. Api 开发
+
+1. Api开发 -- 声明获取用户信息接口
+
+   Api 主要是为了 获取用户信息，因此我们只需要 声明一个 获取用户信息的 接口。
+
+   ```java
+   package com.yafey.security.core.social.qq.api;
+   public interface QQ {
+   	// Api 主要是为了 获取用户信息，因此我们只需要 声明一个 获取用户信息的 接口。
+       QQUserInfo getUserInfo();
+   }
+   ```
+
+2. 开发接口实现类
+
+   接口实现类继承了 Spring Social 中的 AbstractOAuth2ApiBinding 并实现了 QQ 接口。
+
+   > 我们 先看一下 Spring Social 中 AbstractOAuth2ApiBinding 中的部分源码：
+   >
+   > 这个抽象类里面声明了一个 accessToken 和一个 restTemplate。
+   >
+   > - accessToken 说明： 我们现在写的 Api 实现类（QQImpl） 在 整个流程里面是执行 第六步 获取用户信息的。要执行这一步，必须携带 第五步 拿到的 令牌。 所以 这个 accessToken  属性 保存的是 就是这个 令牌。
+   >   - *授权登录中，获取每一个QQ用户的 openId 和登录信息都需要一个 token，而且每个人的 token 不可能都一样，因此我们的 accessToken  不能够是单例的。*
+   > - restTemplate 主要用于帮助我们往 服务提供商 发 Restful/HTTP 请求的。
+   >
+   > ```java
+   > package org.springframework.social.oauth2;
+   > public abstract class AbstractOAuth2ApiBinding implements ApiBinding, InitializingBean {
+   > 
+   >     private final String accessToken;
+   >     private RestTemplate restTemplate;
+   > 
+   >     protected AbstractOAuth2ApiBinding() {
+   >         accessToken = null;
+   >         restTemplate = createRestTemplateWithCulledMessageConverters();
+   >         configureRestTemplate(restTemplate);
+   >     }
+   >         //省略几万字~~~
+   > ```
+   
+   查看 QQ互联 接口 API，accessToken 已经在 AbstractOAuth2ApiBinding 中帮我们定义好了， 我们只需要 在 QQImpl 中定义 appID（appId 是我们接入 QQ 时分配的 ID） 和 openid（存储的是 获取到的用户 openId，唯一标识符） 即可。外加两个 URL 模板字符串 方便调用（一个是 get_user_info 获取用户信息的路径，另一个是 通过 access Token 去发请求 获取 openid 的路径）。
+
+   - 构造函数中，我们调用了父类的构造方法，最主要的是第二个参数`TokenStrategy.ACCESS_TOKEN_PARAMETER`，表示我们去获取 openID 的时候，**token 是放在`请求参数`中的，父类默认是放在`请求头`里面的，所以我们这里必须这么写一下。**
+   - getUserInfo 方法使用 openId 和 appId，发起 rest 请求从QQ那里获取到用户的具体信息，然后封装成 QQUserInfo 对象。
+   
+   ![QQ互联 接口 API](README_images/5/image-20200228164848393.png "QQ互联 接口 API")
+   
+   ```java
+   package com.yafey.security.core.social.qq.api;
+   // 每个人的 token 都是不一样的，因此我们的QQImpl不能够是单例的。即 不能使用 @Component 注解。
+   public class QQImpl extends AbstractOAuth2ApiBinding implements QQ {
+   	// 通过 access Token 去发请求 获取 openid 的路径
+   	private static final String URL_GET_OPENID = "https://graph.qq.com/oauth2.0/me?access_token=%s";
+   	// 获取用户信息的路径
+   	private static final String URL_GET_USERINFO = "https://graph.qq.com/user/get_user_info?oauth_consumer_key=%s&openid=%s";
+   	
+   	private String appId;
+   	
+   	private String openId;
+   	
+   	private ObjectMapper objectMapper = new ObjectMapper();
+   	
+   	public QQImpl(String accessToken, String appId) {
+           // token 是放在`请求参数`中的，父类默认是放在`请求头`里面的，所以我们这里必须这么写一下。
+   		super(accessToken, TokenStrategy.ACCESS_TOKEN_PARAMETER);
+   		
+   		this.appId = appId;
+   		
+   		String url = String.format(URL_GET_OPENID, accessToken);
+   		String result = getRestTemplate().getForObject(url, String.class);
+   		
+   		System.out.println(result);
+   		
+   		this.openId = StringUtils.substringBetween(result, "\"openid\":\"", "\"}");
+   	}
+   	
+   	/** 
+   	 * 这个方法使用 openId 和 appId，发起 rest 请求从QQ那里获取到用户的具体信息，然后封装成 QQUserInfo 对象。
+   	 */
+   	@Override
+   	public QQUserInfo getUserInfo() {
+   		
+   		String url = String.format(URL_GET_USERINFO, appId, openId);
+   		String result = getRestTemplate().getForObject(url, String.class);
+   		
+   		System.out.println(result);
+   		
+   		QQUserInfo userInfo = null;
+   		try {
+   			userInfo = objectMapper.readValue(result, QQUserInfo.class);
+   			userInfo.setOpenId(openId);
+   			return userInfo;
+			} catch (Exception e) {
+   		throw new RuntimeException("获取用户信息失败", e);
+   		}
+   	}
+   }
+   ```
+   
+3. QQUserInfo , 这个就是把从QQ接收到的用户信息字段映射到的一个类中。
+
+   OK，Api模块我们就开发完成了。
+
+   ![image-20200228193505485](README_images/5/image-20200228193505485.png)
+
+
+
+#### 5.3.1.2. OAuthOperations 开发
+
+为什么我们不直接使用 OAuth2Template 呢，而要自己去实现一个 QQOAuth2Template？
+
+这是因为 QQ 返回回来的信息中是 `text/html` 格式的，OAuth2Template 没有支持处理这种类型的请求，所以我们必须要自己手动定义一个 。
+
+- createRestTemplate 方法添加了一个 StringHttpMessageConverter，这样我们就可以成功的将服务提供商返回的信息转换成对应的对象了。
+- 那为什么我们还要重写 postForAccessGrant 方法呢？我们会在后面讲解。  
+
+
+
+OAuthOperations 开发就算开发完成了，那么我们相当于凑齐了 ServiceProvider 的两大组件了，我们可以做 ServiceProvider 的实现了。
+
+
+
+#### 5.3.1.3. ServiceProvider 开发
+
+ServiceProvider 抛开 API 组件，主要是完成了OAuth中的步骤1-5。
+
+`QQServiceProvider` 需要继承抽象类 `AbstractOAuth2ServiceProvider<QQ>` ，里面 的 泛型是 Api 接口的泛型，即我们自定义的 QQ 接口。
+
+- getApi 方法： ServiceProvider 用来获取 用户信息 需要的方法。我们刚才说了每个用户的token 是不一样的，而且 token 是有期限的。所以我们不能够直接把 QQImpl 声明为单例的，这里必须要 new 一个出来。accessToken 保存在 父类中。
+
+  
+
+- 构造方法： 调用了父类的构造方法，并且参数是我们自己声明的 QQOAuth2Template。
+
+  - 其中 appId 和 appSecret 是QQ分配给我们的。因为每个调用我们模块的这两个参数都不一样，所以需要传进来。
+  - URL_AUTHORIZE 表示我们引导用户跳转的授权页面，对应步骤1。
+  - URL_ACCESS_TOKEN 对应步骤4，表示去获取 token。
+
+```java
+package com.yafey.security.core.social.qq.connect;
+
+public class QQServiceProvider extends AbstractOAuth2ServiceProvider<QQ> {
+
+	private String appId; // 整个应用 对于 QQ 来说，有一个固定的 appID。
+	
+	private static final String URL_AUTHORIZE = "https://graph.qq.com/oauth2.0/authorize";
+	
+	private static final String URL_ACCESS_TOKEN = "https://graph.qq.com/oauth2.0/token";
+	
+	public QQServiceProvider(String appId, String appSecret) {
+		// 其中 appId 和 appSecret 是QQ分配给我们的。因为每个调用我们模块的这两个参数都不一样，所以需要传进来。
+		// URL_AUTHORIZE 表示我们引导用户跳转的授权页面，对应步骤1。
+		// URL_ACCESS_TOKEN 对应步骤4，表示去获取 token。
+		super(new QQOAuth2Template(appId, appSecret, URL_AUTHORIZE, URL_ACCESS_TOKEN));
+		this.appId = appId;
+	}
+	
+	@Override
+	public QQ getApi(String accessToken) {
+		return new QQImpl(accessToken, appId);
+	}
+}
+```
+
+
+
+#### 5.3.1.4. ApiAdapter
+
+这个主要是用于适配作用的，试想，我们从QQ、微信、微博中获取到的 UserInfo 信息是五花八门的，但是我们的 Connection 想要的信息就那么多，如何适配呢？很简单直接继承 SpringSocial提供的 ApiAdapter 接口。
+
+> QQAdapter 就是在我们自己写的 QQImpl （Api）所获取到的 个性化的 服务提供商 的 用户数据 和 Spring Social 标准的 数据结构 进行 适配。
+
+- test 方法：表示和 QQ 的连接是否 还通畅，我们这里直接返回 true。
+
+- `setConnectionValues` 方法：**这里就是 真正 做适配 的地方。**
+
+  这个方法里面要做的就是 把 QQUserInfo （从 Api 接口获取的数据） 转换成 ConnectionValues 需要的数据。
+
+  
+
+当我们完成了 适配 和 Serviceprovider 后，我们就可以开始构造 我们的 ConnectionFactory 了。
+
+```
+package com.yafey.security.core.social.qq.connect;
+
+public class QQAdapter implements ApiAdapter<QQ> {
+
+	/**
+	 * 表示和 QQ 的连接是否 还通畅，我们这里直接返回 true。
+	 */
+	@Override
+	public boolean test(QQ api) {
+		return true;
+	}
+
+	/**
+	 * 把 QQUserInfo （从 Api 接口获取的数据） 转换成 ConnectionValues 需要的数据。
+	 */
+	@Override
+	public void setConnectionValues(QQ api, ConnectionValues values) {
+		QQUserInfo userInfo = api.getUserInfo();
+		
+		values.setDisplayName(userInfo.getNickname());
+		values.setImageUrl(userInfo.getFigureurl_qq_1());
+		values.setProfileUrl(null); // qq 里面没有 个人主页。 比如 微博，这个就可以设置为 个人主页。
+		values.setProviderUserId(userInfo.getOpenId()); // 用户在  服务提供商 那边的唯一标识。
+	}
+
+	// 跟 api.getUserInfo() ， 后续 绑定、解绑 的时候再写。
+	@Override
+	public UserProfile fetchUserProfile(QQ api) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	// 比如 微博，可以发一条消息去更新微博， 在 QQ 这里没有这种操作。
+	@Override
+	public void updateStatus(QQ api, String message) {
+		//do noting
+	}
+}
+```
+
+
+
+#### 5.3.1.5. OAuth2ConnectionFactory 及 Connection
+
+OAuth2ConnectionFactory 的构建非常简单，继承 OAuth2ConnectionFactory ， 泛型是 Api 接口类型，然后 将我们构建出的 QQServiceProvider 和 QQAdapter 传给 父类的构造函数即可。
+
+然后 Spring Social 就可以利用它创建 Connection 了。
+
+- 我们不用自己处理 Connection ， Spring Social 会根据 OAuth2ConnectionFactory 和 前面的代码，自动帮我们创建出来。
+
+```java
+package com.yafey.security.core.social.qq.connect;
+
+public class QQConnectionFactory extends OAuth2ConnectionFactory<QQ> {
+
+	// providerId 表示 服务提供商 的唯一标识 ，放在配置中。
+	// appId 和 appSecret 也从外面传进来，交给 QQServiceProvider。 
+	/**
+	 * 将我们构建出的 QQServiceProvider 和 QQAdapter 传给 父类的构造函数即可。
+	 */
+	public QQConnectionFactory(String providerId, String appId, String appSecret) {
+		super(providerId, new QQServiceProvider(appId, appSecret), new QQAdapter());
+	}
+}
+```
+
+
+
+#### 5.3.1.6. 配置SocialConfig
+
+要把数据保存到数据库，我们只需要 配置数据库信息交给 Spring Social `JdbcUsersConnectionRepository` 即可。
+
+Spring Socail 会使用 `JdbcUsersConnectionRepository`（UsersConnectionRepository 的 默认实现类） 来将 Connection 存储到 DBUserConnection中去。
+
+1. 成员变量解析
+
+   DataSource  表示数据源，repository 会使用到
+
+   connectionSignUp 注册配置,详情请见下面的 第9部分拓展部分
+
+   SecurityProperties，存放QQ和微信的配置，其中的成员变量包含了 appId 和 appSecret
+
+2. **`getUsersConnectionRepository`**
+
+   这里我们使用了 SpringSocial 默认提供的 JdbcUsersConnectionRepository，第一个参数是dataSource，第二个参数 connectionFactoryLocator 可以帮我们选择对应的ConnectionFactory ，我们这里只写了一个QQ登录，只有一个QQ的 ConnectionFactory，但是下一篇文章中，我们写微信登录的时候，那么就会有多的 ConnectionFactory 了。`Encryptors.noOpText()` 表示我们对数据不加密，这里我们只是为了演示使用，**实际上我们的数据入库的时候，对于 access_token 这类敏感信息还是需要加密的**。
+
+3. `addConnectionFactories`
+
+  把我们的 QQFactory 和 WeixinFactory 加进去对于微信的实现我们下一篇文章讲，这里先卖个关子 。
+
+4. `getUserIdSource`
+
+   这个也是 SpringBoot2 里面最恶心的地方了，在 1.5 的版本中是没有这个东西了，这个方法主要是被 Filter 调用的，我们就返回 SpringSocial 默认提供的实现就可以了。
+
+```java
+package com.yafey.security.core.social;
+
+@Configuration
+@EnableSocial  // 声明 使用 Spring Social
+public class SocialConfig extends SocialConfigurerAdapter {
+
+	@Autowired
+	private DataSource dataSource;
+
+	@Override
+	public UsersConnectionRepository getUsersConnectionRepository(ConnectionFactoryLocator connectionFactoryLocator) {
+		JdbcUsersConnectionRepository repository = new JdbcUsersConnectionRepository(dataSource,
+				connectionFactoryLocator, Encryptors.noOpText());
+		repository.setTablePrefix("yafey_");  // 假设我们的 表名 规范里面有统一的前缀。
+		return repository;
+	}
+
+}
+```
+
+#### 5.3.1.7. 建立表
+
+Spring-social-core 包提供了 SQL 语句，直接使用就可以了。（和 JdbcUsersConnectionRepository 放在同一个 package 下面）
+
+userId 就是我们的业务系统 userId，providerId 表示 服务提供商 Id，providerUserId 就是 openId。这 3 个 字段是 这张表的 主键。
+
+```sql
+create table yafey_UserConnection (  -- 假设我们的 表名 规范里面有统一的前缀。
+    userId varchar(255) not null,  -- 业务系统 userId
+    providerId varchar(255) not null,  -- 服务提供商 Id
+    providerUserId varchar(255),  -- 对于 QQ 来说 就是 openId 
+    rank int not null,
+    displayName varchar(255),
+    profileUrl varchar(512),
+    imageUrl varchar(512),
+    accessToken varchar(512) not null,
+    secret varchar(512),
+    refreshToken varchar(512),
+    expireTime bigint,
+    primary key (userId, providerId, providerUserId));
+create unique index UserConnectionRank on UserConnection(userId, providerId, rank);
+```
+
+#### 5.3.1.8. 修改 MyUserDetailsService 实现 SocialUserDetailsService 接口
+
+在我们进行QQ 登录的时候，我们会根据 providerId 和 providerUserId 拿到 userId，然后通过 userId 拿到 用户的 具体业务信息。其实 SpringSocial 也提供了一个接口 SocialUserDetailsService ,帮助我们获取 user 的信息，所以我们也让 MyUserDetailsService 实现了 SocialUserDetailsService 接口， 并实现 loadUserByUserId 方法。
+
+SocialUserDetails 是 UserDetails 的 子类，只不过多了一个 getUserId(); 方法。如果用 username 作为 唯一标识，这个方法等同于 getUsername 。
+
+然后将 这个类 从 security-browser 挪到 browser-demo project 中。 ------ 因为 userId 这种 是 具体的 业务数据。
+
+```java
+package com.yafey.security.browser;
+
+@Component
+@Slf4j
+public class MyUserDetailsService implements UserDetailsService,SocialUserDetailsService {
+
+    // 这个方法是 Spring Social 根据 providerId 和 providerUserId 从 yafey_UserConnection 拿到 userId，然后传过来。
+    @Override
+    public SocialUserDetails loadUserByUserId(String userId) throws UsernameNotFoundException {
+    	log.info("社交登录用户Id:" + userId);
+        return buildUser(userId);
+    }
+
+    private SocialUserDetails buildUser(String userId) {
+        // 根据用户名查找用户信息
+        //根据查找到的用户信息判断用户是否被冻结
+        String password = passwordEncoder.encode("123456");
+        log.info("数据库密码是:"+password);
+        return new SocialUser(userId, password,
+                true, true, true, true,
+                AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
+    }
+    ...其他代码...
+}
+```
+
+
+
+#### 5.3.1.9. 新建 QQProperties
+
+```java
+package com.yafey.security.core.properties;
+
+// 父类中声明了 appid 和 appSecret
+@Data
+public class QQProperties extends SocialProperties {
+	
+	private String providerId = "qq";  // 标识符 就设置为 qq 就可以
+}
+```
+
+#### 5.3.1.10. 新建 SocialProperties
+
+然后把 QQProperties 加进去，然后 把 SocialProperties 加到 SecurityProperties 中。
+
+```java
+package com.yafey.security.core.properties;
+import lombok.Data;
+
+@Data
+public class SocialProperties {
+	private QQProperties qq = new QQProperties();
+}
+```
+
+
+
+```java
+package com.yafey.security.core.properties;
+
+@Data
+@ConfigurationProperties(prefix = "yafey.security")
+public class SecurityProperties {
+	
+	private BrowserProperties browser = new BrowserProperties();
+	private ValidateCodeProperties code = new ValidateCodeProperties();
+
+	private SocialProperties social = new SocialProperties();
+}
+```
+
+#### 5.3.1.11. 新建 QQAutoConfig 配置类
+
+继承 SocialAutoConfigurerAdapter， 实现 createConnectionFactory 方法。----- 将 配置的 appid 、appSecret 和 providerId 构建 ConnectionFactory 。 
+
+```java
+package com.yafey.security.core.social.qq.config;
+
+@Configuration
+@ConditionalOnProperty(prefix = "yafey.security.social.qq", name = "app-id") // 只有在系统中 配置 app-id,下面的配置才会生效。
+public class QQAutoConfig extends SocialAutoConfigurerAdapter {
+
+	@Autowired
+	private SecurityProperties securityProperties;
+
+	@Override
+	protected ConnectionFactory<?> createConnectionFactory() {
+		QQProperties qqConfig = securityProperties.getSocial().getQq();
+		return new QQConnectionFactory(qqConfig.getProviderId(), qqConfig.getAppId(), qqConfig.getAppSecret());
+	}
+}
+```
+
+#### 5.3.1.12. 添加 social 配置 @ browser-demo
+
+```yaml
+yafey:
+  security:
+    social:
+      qq:
+        app-id: 
+        app-secret: 
+        providerId: qq
+    ...其他配置...
+```
+
+#### 5.3.1.13. 配置 SocialConfigurer ，加到 过滤器链上。
+
+我们把所有的组件都已经完成好了，接下来就是配置我们的过滤器了
+
+在 SocialConfig 中我们先暂时直接 new SpringSocialConfigurer。
+
+```java
+package com.yafey.security.core.social;
+
+@Configuration
+@EnableSocial  // 声明 使用 Spring Social
+public class SocialConfig extends SocialConfigurerAdapter {
+	... 其他代码...
+        
+	@Bean
+	public SpringSocialConfigurer yafeySocialSecurityConfig() {
+		return new SpringSocialConfigurer();
+	}
+}
+```
+
+继承的 SpringSocialConfigurer 其实生成了一个`SocialAuthenticationFilter`，而这个Filter默认只会拦截 `/auth` 开头的请求路径。
+
+```java
+package com.yafey.security.browser;
+
+@Configuration
+public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
+    
+    @Autowired
+	private SpringSocialConfigurer yafeySocialSecurityConfig;
+    
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+		
+		applyPasswordAuthenticationConfig(http);
+		
+		http
+			.apply(yafeySocialSecurityConfig) // 添加 social 的配置
+		;
+		... 其他代码 ... 
+	}
+    ... 其他代码 ... 
+}			
+```
+
+#### 5.3.1.14. 在 self-login.html 新增链接
+
+SocialAuthenticationFilter 默认会拦截 `/auth` 开头的链接，qq 是 ProviderID 
+
+```html
+<h3>社交登录</h3>
+<!-- SocialAuthenticationFilter 默认会拦截 /auth 开头的链接，qq 是 ProviderID -->
+<a href="/auth/qq">QQ登录</a>
+```
+
+
+
+**目前只是能跑起来。还有一些问题需要处理。**
+
+![social-qq-1.gif](README_images/5/social-qq-1.gif)
 
