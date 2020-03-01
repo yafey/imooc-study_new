@@ -1045,3 +1045,132 @@ public class QQOAuth2Template extends OAuth2Template {
 ```
 
 然后 在 QQServiceProvider 中， 使用 QQOAuth2Template 替换 默认的 OAuth2Template 。
+
+在我们拿到 Token 之后，Filter 会拿着这个 Token 选择一个 Provider 做验证，Provider 会使用 Repository **到数据库中获取 userId，如果获取不到，就会跳转到 signUp 页面**，提示用户去注册。而且在跳转之前我们可以看到，session中已经存放了connection的信息，具体步骤如下：
+
+- 第1步：根据得到的 token 去验证
+- 第2步：provider 中通过 repostitory 去拿对应的 userId
+- 第3步：跳转到注册页面
+
+![第1步：根据得到的token去验证](README_images/5/image-20200301231010066.png "第1步：根据得到的token去验证")
+
+![第2步：provider 中通过 repostitory 去拿对应的 userId](README_images/5/image-20200301231023279.png "第2步：provider 中通过 repostitory 去拿对应的 userId")
+
+![第3步：跳转到注册页面](README_images/5/image-20200301231031809.png "第3步：跳转到注册页面")
+
+
+
+基于此，我们还需要设置一个注册页面。
+
+
+
+### 5.4.4. 注册页面
+
+1. 标准注册页面 yafey-signUp.html
+
+   ```html
+   <!DOCTYPE html>
+   <html>
+   <head>
+   <meta charset="UTF-8">
+   <title>标准注册页面</title>
+   </head>
+   <body>
+   	<h2>标准注册页面</h2>
+   	<h3>这是系统注册页面，请配置  yafey.security.browser.signUpUrl 属性来设置自己的注册页</h3>
+   </body>
+   </html>
+   ```
+
+   
+
+2. 在 BrowserProperties 新增 signUpUrl 属性。
+
+3. 配置 demo.yaml
+
+   ```yaml
+   yafey:
+     browser:
+       signUpUrl: /demo-signUp.html
+   ```
+
+4. 新建 demo-signUp.html
+
+   ```html
+   <!DOCTYPE html>
+   <html>
+   <head>
+   <meta charset="UTF-8">
+   <title>Demo注册页</title>
+   </head>
+   <body>
+       <h2>Demo注册页</h2>
+       
+       <form action="/user/regist" method="post">
+           <table>
+               <tr>
+                   <td>用户名:</td> 
+                   <td><input type="text" name="username"></td>
+               </tr>
+               <tr>
+                   <td>密码:</td>
+                   <td><input type="password" name="password"></td>
+               </tr>
+               <tr>
+                   <td colspan="2">
+                       <button type="submit" name="type" value="regist">注册</button>
+                       <button type="submit" name="type" value="binding">绑定</button>
+                   </td>
+               </tr>
+           </table>
+       </form>
+   </body>
+   </html>
+   ```
+
+   
+
+5. 注册逻辑
+
+   **`ProviderSignInUtils` 是SpringSocial提供的一个工具类，帮助我们把用户信息绑定到对应的账户中去。**
+
+   ```java
+   @RestController
+   public class UserController {
+       
+       @Autowired
+       private ProviderSignInUtils providerSignInUtils;
+       
+       @PostMapping("/user/regist")
+       public void regist(User user, HttpServletRequest request) {
+           
+           //不管是注册用户还是绑定用户，都会拿到一个用户唯一标识。
+           String userId = user.getUsername();
+           providerSignInUtils.doPostSignUp(userId, new ServletWebRequest(request));
+       }
+       ... 其他代码 ...
+   }
+   ```
+
+6. 在 SocialConfig 中 注册 providerSignInUtils
+
+   ```java
+   	@Bean
+   	public ProviderSignInUtils providerSignInUtils(ConnectionFactoryLocator connectionFactoryLocator) {
+   		return new ProviderSignInUtils(connectionFactoryLocator,
+   				getUsersConnectionRepository(connectionFactoryLocator)) {
+   		};
+   	}
+   ```
+
+7. 在 BrowserSecurityConfig 中，将 signUpUrl 和 "/user/regist" url 设置为不需要校验。
+
+   ```
+   ,securityProperties.getBrowser().getSignUpUrl()
+   ,"/user/regist"
+   ```
+
+   
+
+8. 
+

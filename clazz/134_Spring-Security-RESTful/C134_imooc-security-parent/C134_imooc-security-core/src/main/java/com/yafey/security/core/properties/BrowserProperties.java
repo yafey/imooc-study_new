@@ -9,5 +9,7 @@ public class BrowserProperties {
 	private LoginResponseType loginType = LoginResponseType.JSON;
 	
 	private int rememberMeSeconds = 3600;
+	
+	private String signUpUrl = "/yafey-signUp.html";
 
 }

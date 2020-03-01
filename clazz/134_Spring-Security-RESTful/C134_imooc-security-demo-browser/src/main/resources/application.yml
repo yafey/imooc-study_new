@@ -24,6 +24,8 @@ spring:
 #    browser:
 #      loginType: REDIRECT
 yafey:
+  browser:
+    signUpUrl: /demo-signUp.html
   security:
     code:
       image:

@@ -75,6 +75,8 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 					SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_MOBILE,
 					securityProperties.getBrowser().getLoginPage(),
 					SecurityConstants.DEFAULT_VALIDATE_CODE_URL_PREFIX+"/*"
+					,securityProperties.getBrowser().getSignUpUrl()
+					,"/user/regist"
 						).permitAll()  //登陆页面 及 配置的 url 不需要校验
 				.anyRequest()     //任何请求
 				.authenticated()  //都需要身份认证

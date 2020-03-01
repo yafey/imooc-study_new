@@ -11,6 +11,7 @@ import org.springframework.social.config.annotation.SocialConfigurerAdapter;
 import org.springframework.social.connect.ConnectionFactoryLocator;
 import org.springframework.social.connect.UsersConnectionRepository;
 import org.springframework.social.connect.jdbc.JdbcUsersConnectionRepository;
+import org.springframework.social.connect.web.ProviderSignInUtils;
 import org.springframework.social.security.SpringSocialConfigurer;
 
 import com.yafey.security.core.properties.SecurityProperties;
@@ -36,7 +37,15 @@ public class SocialConfig extends SocialConfigurerAdapter {
 	public SpringSocialConfigurer yafeySocialSecurityConfig() {
 		String filterProcessesUrl = securityProperties.getSocial().getFilterProcessesUrl();
 		YafeySpringSocialConfigurer configurer = new YafeySpringSocialConfigurer(filterProcessesUrl);
+		configurer.signupUrl(securityProperties.getBrowser().getSignUpUrl()); // 当找不到用户时，跳转到 注册页面。
 		return configurer;
+	}
+	
+	@Bean
+	public ProviderSignInUtils providerSignInUtils(ConnectionFactoryLocator connectionFactoryLocator) {
+		return new ProviderSignInUtils(connectionFactoryLocator,
+				getUsersConnectionRepository(connectionFactoryLocator)) {
+		};
 	}
 
 }
