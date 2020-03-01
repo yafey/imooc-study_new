@@ -13,12 +13,16 @@ import org.springframework.social.connect.UsersConnectionRepository;
 import org.springframework.social.connect.jdbc.JdbcUsersConnectionRepository;
 import org.springframework.social.security.SpringSocialConfigurer;
 
+import com.yafey.security.core.properties.SecurityProperties;
+
 @Configuration
 @EnableSocial  // 声明 使用 Spring Social
 public class SocialConfig extends SocialConfigurerAdapter {
 
 	@Autowired
 	private DataSource dataSource;
+	@Autowired
+	private SecurityProperties securityProperties;
 	
 	@Override
 	public UsersConnectionRepository getUsersConnectionRepository(ConnectionFactoryLocator connectionFactoryLocator) {
@@ -30,7 +34,9 @@ public class SocialConfig extends SocialConfigurerAdapter {
 	
 	@Bean
 	public SpringSocialConfigurer yafeySocialSecurityConfig() {
-		return new SpringSocialConfigurer();
+		String filterProcessesUrl = securityProperties.getSocial().getFilterProcessesUrl();
+		YafeySpringSocialConfigurer configurer = new YafeySpringSocialConfigurer(filterProcessesUrl);
+		return configurer;
 	}
 
 }

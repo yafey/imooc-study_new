@@ -281,7 +281,7 @@ typora-copy-images-to: ./README_images/5
 
 
 
-## 5.3. 开发 QQ 登陆
+## 5.3(5-3,5-4). 开发 QQ 登陆
 
 > 参考 整理自： https://www.jianshu.com/p/6220b2745b24
 
@@ -808,4 +808,147 @@ SocialAuthenticationFilter 默认会拦截 `/auth` 开头的链接，qq 是 Prov
 **目前只是能跑起来。还有一些问题需要处理。**
 
 ![social-qq-1.gif](README_images/5/social-qq-1.gif)
+
+
+
+## 5.4(5-5). 完善 QQ 登陆
+
+上图中出现的 `param client_id is wrong or lost (100001)` ， 表示 回调地址 出错。
+
+在 OAuth 流程的 第三步， 当 用户同意授权后，服务提供商 会跳回到 第三方应用 ， 就需要 这个 回调地址。这个地址是 我们在 QQ 互联 上申请应用的时候 需要填写的 ，示例如下：
+
+![image-20200301133222456](README_images/5/image-20200301133222456.png)
+
+
+
+### 5.4.1. 修改 redirectURL
+
+让我们的回调地址指向到 上面 申请时候配置的 地址。
+
+1. 修改 hosts , 让 www.pinzhi365.com 指向 localhost/127.0.0.1
+
+   ```hosts
+   127.0.0.1 www.pinzhi365.com
+   ```
+
+   
+
+2. 修改 Social filter 默认拦截的 地址。
+
+   新建 YafeySpringSocialConfigurer
+
+   我们这里使用了 `filter.setFilterProcessesUrl(filterProcessesUrl);` 来改变默认的配置。为什么是在 setFilterProcessesUrl 配置呢？
+
+   - 因为 SpringSocialConfigurer 在把 Filter 放到过滤器链之前会调用一个 `postProcess` 方法，所以我们在调用父类的 postProcess 之后，我们就在这里设置 processingUrl。除此之外，我们的请求跳转还涉及到 providerId，**这个 providerId 也是我们实现跳转和授权完成之后回调的关键**。我们自定义 Filter 拦截 `/qqLogin/callback.do` 的请求会跳转到QQ登录，因此 ConnectionProvider 的 providerId 也必须配置成 `callback.do`，filterProcessesUrl 为 qqLogin。
+
+   ```java
+   package com.yafey.security.core.social;
+   
+   public class YafeySpringSocialConfigurer extends SpringSocialConfigurer {
+   	
+   	private String filterProcessesUrl;
+   	
+   	public YafeySpringSocialConfigurer(String filterProcessesUrl) {
+   		this.filterProcessesUrl = filterProcessesUrl;
+   	}
+   	
+   	@SuppressWarnings("unchecked")
+   	@Override
+   	protected <T> T postProcess(T object) {
+   		SocialAuthenticationFilter filter = (SocialAuthenticationFilter) super.postProcess(object);
+   		filter.setFilterProcessesUrl(filterProcessesUrl);
+   		return (T) filter;
+   	}
+   }
+   ```
+
+3. 修改 SocialConfig
+
+   ```java
+   package com.yafey.security.core.social;
+   
+   @Configuration
+   @EnableSocial  // 声明 使用 Spring Social
+   public class SocialConfig extends SocialConfigurerAdapter {
+   	...其他代码...
+   	@Autowired
+   	private SecurityProperties securityProperties;
+   	
+   	@Bean
+   	public SpringSocialConfigurer yafeySocialSecurityConfig() {
+   		String filterProcessesUrl = securityProperties.getSocial().getFilterProcessesUrl();
+   		YafeySpringSocialConfigurer configurer = new YafeySpringSocialConfigurer(filterProcessesUrl);
+   		return configurer;
+   	}
+   ```
+
+4. 配置 ， 和 申请时的 uri 保持一致。
+
+   ```yaml
+   yafey:
+     security:
+       social:
+         qq:
+           app-id: 
+           app-secret: 
+           filterProcessUrl: /qqLogin
+           providerId: callback.do
+   ```
+
+5. 修改 self-login.html 的链接
+
+   ```html
+   	<h3>社交登录</h3>
+   	<!-- SocialAuthenticationFilter 默认会拦截 /auth 开头的链接，qq 是 ProviderID -->
+       <a href="/qqLogin/callback.do">QQ登录</a>
+   ```
+
+   使用 www.pinzhi365.com/self-login.html , 因为修改了 hosts, 所以访问的还是 本地的 服务。
+
+   查看日志， 发现会访问 signIn 地址， 因为这个地址没有 排除掉，所以跳到了需要授权的页面。
+
+   ```
+   引发跳转的请求是: http://www.pinzhi365.com/signin
+   ```
+
+   ![social-qq-2.gif](README_images/5/social-qq-2.gif)
+
+   
+
+### 5.4.2. Spring Social 流程说明
+
+Spring Social 和 用户名密码 或 手机号 登陆的 核心流程基本上是一致的。
+
+1. 有一个拦截器（SocialAuthenticationFilter) 去拦截特定的请求 （默认是 `/auth/<providerId>` )。
+2. 把这个请求中 需要做身份认证的信息 封装到一个 Authentication 的实现类 中。
+3. 然后把 Authentication 实现类 交给 AuthenticationManager。
+   - <span style="color:green;font-family:'PMingLiU,MingLiU,KaiTi_GB2312'">*在 Spring Social 中，在 封装 Authentication  给 AuthenticationManager 的时候，用到了一个接口--SocialAuthenticationService， 在这里 具体的实现类是 OAuth2AuthenticationService。它的作用是 执行整个 OAuth2 的 流程。*</span>
+   - <span style="color:green;font-family:'PMingLiU,MingLiU,KaiTi_GB2312'">*然后在执行的过程中会去调用我们自己写的 ConnectionFactory，拿到 ServiceProvider ，ServiceProvider 里面有 一个 OAuth2Operators（OAuth2Template），可以帮助 Spring Social 完成 整个的流程。*</span>
+   - <span style="color:green;font-family:'PMingLiU,MingLiU,KaiTi_GB2312'">*完成流程后， 会拿到 服务提供商 的用户信息，封装到 Connection 中。 Connection 会被封装成 一个 SocialAuthenticationToken （Authentication）， 然后将 SocialAuthenticationToken 交给 AuthenticationManager。*</span>
+4. AuthenticationManager 根据 传进来的 Authentication 的类型， 从它管理的 AuthenticationProvider 接口实现类 中 挑一个 Provider 来处理 传进来的 校验信息。
+   - <span style="color:green;font-family:'PMingLiU,MingLiU,KaiTi_GB2312'">*AuthenticationManager 会挑选 SocialAuthenticationProvider 来处理 这个 Token （SocialAuthenticationToken ）。在处理的 时候， 会根据 Connection （也就是 服务提供商 的 用户信息），使用 JdbcUsersConnectionRepository 这个类 到数据库中 查找到 业务系统的 UserId。*</span>
+   - <span style="color:green;font-family:'PMingLiU,MingLiU,KaiTi_GB2312'">*查找到 UserId 后， 根据 UserId 去调 我们自己写的 SocialUserDetailService ，这个类里面，去业务系统里 把 真正要放到 session 中的 用户信息 查出来（也就是 SocialUserDetails）, 然后把 SocialUserDetails 中的用户信息 放到 最终的 SocialAuthenticationToken ，并标记为 已经过身份校验，然后 放到 SecurityContext 中，最终放到 session 中。*</span>
+5. 在处理的过程中， 会去调用我们自己写的 UserDetailService 接口的实现 来获取业务系统中 用户的 信息。 然后把 业务系统的 用户信息 封装在 UserDetail 接口的实现类 中。
+6. 然后进行一系列的 检查和 校验， 如果都通过了，然后把 业务系统的用户信息 封装在 Authentication 中，并把它 标记为 `已校验` 的， 放到 SecurityContext 中。
+
+
+
+PS：
+
+- 蓝色的这些 是 Spring Social 封装好的；
+- 橙色的这些 是 我们自己写的。
+
+
+
+![Spring Social 流程说明](README_images/5/image-20200301143024168.png "Spring Social 流程说明")
+
+
+
+![5.2.2. Spring Social 接口说明](README_images/5/image-20200227234552236.png "5.2.2. Spring Social 接口说明")
+
+
+
+
+
+
 
