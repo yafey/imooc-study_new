@@ -1177,3 +1177,36 @@ public class QQOAuth2Template extends OAuth2Template {
 在 重定向到 注册页面 之前，Spring Social 会将 Connection 放到 session 中， 因此，在注册页面我们可以从 session 中 取出 用户 在 服务提供商 的信息。相关操作可以使用 providerSignInUtils 类。
 
 ![image-20200302001417579](README_images/5/image-20200302001417579.png)
+
+
+
+### 5.4.6. 新用户直接登录
+
+有时候我们发现在用第三方授权登录后，不需要用户在注册信息，那这个是怎么实现的呢？我们先看看 SocialAuthenticationProvider 源码
+
+![image-20200302001947761](README_images/5/image-20200302001947761.png)
+
+在toUserId中我们刚才找不到用户的时候直接跳转到了注册页面，原因是Repostiry在寻找userId的时候的逻辑是这样的：
+
+如果找不到用户且connectionSignUp为空了，就会返回一个空的List，但是如果我们实现一个connectionSignUp，这里就可以根据我们的根据我们的逻辑把这个userId放到数据库中去，所以我们这里要自己实现一个connectionSignUp。
+
+这样配置后，我们即使在数据库中没有该用户也能够拿到用户信息 。
+
+![image-20200302002023313](README_images/5/image-20200302002023313.png)
+
+```
+@Component
+public class DemoConnectionSignUp implements ConnectionSignUp {
+
+    /* (non-Javadoc)
+     * @see org.springframework.social.connect.ConnectionSignUp#execute(org.springframework.social.connect.Connection)
+     */
+    @Override
+    public String execute(Connection<?> connection) {
+        //根据社交用户信息默认创建用户并返回用户唯一标识
+        return connection.getDisplayName();
+    }
+
+}
+```
+
