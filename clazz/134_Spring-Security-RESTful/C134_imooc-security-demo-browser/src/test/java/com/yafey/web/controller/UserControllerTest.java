@@ -124,24 +124,24 @@ public class UserControllerTest {
 		// @formatter:on
 	}
 
-	@Test
-	public void whenCreateSuccess() throws Exception {
-		Date date = new Date();
-		String content = "{\"username\":\"user1\",\"password\":\"1\",\"birthday\":" + date.getTime() + "}";
-		log.info("content:{}", content);
-		// @formatter:off
-		String result = mockMvc.perform(
-					post("/user")
-					.content(content)
-					.contentType(MediaType.APPLICATION_JSON_UTF8)
-				)
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value("1"))
-				.andReturn().getResponse().getContentAsString()
-				;
-		// @formatter:on
-		log.info("result:{}", result);
-	}
+//	@Test
+//	public void whenCreateSuccess() throws Exception {
+//		Date date = new Date();
+//		String content = "{\"username\":\"user1\",\"password\":\"1\",\"birthday\":" + date.getTime() + "}";
+//		log.info("content:{}", content);
+//		// @formatter:off
+//		String result = mockMvc.perform(
+//					post("/user")
+//					.content(content)
+//					.contentType(MediaType.APPLICATION_JSON_UTF8)
+//				)
+//				.andExpect(status().isOk())
+//				.andExpect(jsonPath("$.id").value("1"))
+//				.andReturn().getResponse().getContentAsString()
+//				;
+//		// @formatter:on
+//		log.info("result:{}", result);
+//	}
 	
 	
 	@Test

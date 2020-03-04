@@ -811,7 +811,7 @@ SocialAuthenticationFilter 默认会拦截 `/auth` 开头的链接，qq 是 Prov
 
 
 
-## 5.4(5-5). 完善 QQ 登陆
+## 5.4(5-5,5-6). 完善 QQ 登陆
 
 上图中出现的 `param client_id is wrong or lost (100001)` ， 表示 回调地址 出错。
 
@@ -952,7 +952,7 @@ PS：
 
 
 
-### 5.4.3. Spring Social 流程源码分析
+### 5.4.3 (5-6). Spring Social 流程源码分析
 
 我们来回想下刚才流程出错的场景：我们已经 跳到 QQ 上，手机扫码了，说明我们已经进行 授权的确认了，确认后，跳回到了我们的 第三方应用。但是它并没有像 我们想象的那样 --- 进到系统里面去，而是跳到了 signin 的 url 上去。所以我们出问题的点 还是在 走 OAuth 的流程中出现的问题（也就是说我们最终 还没有 获取到一个正确 SocialAuthenticationToken 交给 AuthenticationManager 去验证，而是在 OAuth2AuthenticationService 去走 OAuth 流程的过程中出现了问题）。
 
@@ -1209,4 +1209,560 @@ public class DemoConnectionSignUp implements ConnectionSignUp {
 
 }
 ```
+
+
+
+## 5.5.(5-7) 开发微信登陆
+
+SpringSocial 开发微信登录。大部分其实和 QQ 登录很相似，原理就不赘述了。
+
+
+
+### 5.5.1. Properties
+
+1. WeixinProperties
+
+   ```java
+   package com.yafey.security.core.properties;
+   
+   @Data
+   public class WeixinProperties extends SocialProperties {
+   	
+   	/**
+   	 * 第三方id，用来决定发起第三方登录的url，默认是 weixin。
+   	 */
+   	private String providerId = "weixin";
+   
+   }
+   ```
+
+2. SocialProperties
+
+   ```
+   package com.yafey.security.core.properties;
+   
+   import lombok.Data;
+   
+   @Data
+   public class SocialProperties {
+   	private String filterProcessesUrl = "/auth";
+   
+   	private QQProperties qq = new QQProperties();
+   	
+   	private WeixinProperties weixin = new WeixinProperties();
+   }
+   ```
+
+3. yaml
+
+   ```yaml
+   yafey:
+     browser:
+       signUpUrl: /demo-signUp.html
+     security:
+       code:
+         image:
+           length: 6
+           width: 100
+           url: /users,/user/*
+       social:
+         filterProcessUrl: /qqLogin
+         qq:
+           app-id: 
+           app-secret: 
+           providerId: callback.do
+         weixin:
+           app-id: wxd99431bbff8305a0
+           app-secret: 60f78681d063590a469f1b297feff3c4
+   ```
+
+
+
+
+
+### 5.5.2. Api 开发 
+
+1. 声明获取用户信息接口
+
+   ```java
+   package com.yafey.security.core.social.weixin.api;
+   /**
+    * 微信API调用接口
+    */
+   public interface Weixin {
+   
+   	WeixinUserInfo getUserInfo(String openId);
+   	
+   }
+   ```
+
+   
+
+2. WeixinUserInfo
+
+   ```java
+   package com.yafey.security.core.social.weixin.api;
+   
+   import lombok.Data;
+   
+   /**
+    * 微信用户信息
+    */
+   @Data
+   public class WeixinUserInfo {
+   	
+   	/**
+   	 * 普通用户的标识，对当前开发者帐号唯一
+   	 */
+   	private String openid;	
+   	/**
+   	 * 普通用户昵称
+   	 */
+   	private String nickname;
+   	/**
+   	 * 语言
+   	 */
+   	private String language;
+   	/**
+   	 * 普通用户性别，1为男性，2为女性
+   	 */
+   	private String sex;
+   	/**
+   	 * 普通用户个人资料填写的省份
+   	 */
+   	private String province;
+   	/**
+   	 * 普通用户个人资料填写的城市
+   	 */
+   	private String city;
+   	/**
+   	 * 国家，如中国为CN
+   	 */
+   	private String country;
+   	/**
+   	 * 用户头像，最后一个数值代表正方形头像大小（有0、46、64、96、132数值可选，0代表640*640正方形头像），用户没有头像时该项为空
+   	 */
+   	private String headimgurl;
+   	/**
+   	 * 用户特权信息，json数组，如微信沃卡用户为（chinaunicom）
+   	 */
+   	private String[] privilege;
+   	/**
+   	 * 用户统一标识。针对一个微信开放平台帐号下的应用，同一用户的unionid是唯一的。
+   	 */
+   	private String unionid;
+   	
+   }
+   ```
+
+   
+
+3. 获取用户信息接口实现类
+
+   > 和QQ区别最大的是，我们没有在去获取openId了，而且我们的getUserInfo里面多了一个 openId 参数，**为啥不需要去获取openId了呢？是因为微信通过授权码拿到token后同时也把openId带回来了，所以帮我们省去了步骤 。**
+
+   ```java
+   package com.yafey.security.core.social.weixin.api;
+   
+   /**
+    * Weixin API调用模板， scope为Request的Spring bean, 根据当前用户的accessToken创建。
+    */
+   public class WeixinImpl extends AbstractOAuth2ApiBinding implements Weixin {
+   	
+   	/**
+   	 * 
+   	 */
+   	private ObjectMapper objectMapper = new ObjectMapper();
+   	/**
+   	 * 获取用户信息的url
+   	 */
+   	private static final String URL_GET_USER_INFO = "https://api.weixin.qq.com/sns/userinfo?openid=";
+   	
+   	/**
+   	 * @param accessToken
+   	 */
+   	public WeixinImpl(String accessToken) {
+   		super(accessToken, TokenStrategy.ACCESS_TOKEN_PARAMETER);
+   	}
+   	
+   	/**
+   	 * 默认注册的StringHttpMessageConverter字符集为ISO-8859-1，而微信返回的是UTF-8的，所以覆盖了原来的方法。
+   	 */
+   	protected List<HttpMessageConverter<?>> getMessageConverters() {
+   		List<HttpMessageConverter<?>> messageConverters = super.getMessageConverters();
+   		messageConverters.remove(0);
+   		messageConverters.add(new StringHttpMessageConverter(Charset.forName("UTF-8")));
+   		return messageConverters;
+   	}
+   
+   	/**
+   	 * 获取微信用户信息。
+   	 */
+   	@Override
+   	public WeixinUserInfo getUserInfo(String openId) {
+   		String url = URL_GET_USER_INFO + openId;
+   		String response = getRestTemplate().getForObject(url, String.class);
+   		if(StringUtils.contains(response, "errcode")) {
+   			return null;
+   		}
+   		WeixinUserInfo profile = null;
+   		try {
+   			profile = objectMapper.readValue(response, WeixinUserInfo.class);
+   		} catch (Exception e) {
+   			e.printStackTrace();
+   		}
+   		return profile;
+   	}
+   
+   }
+   ```
+
+   
+
+OK，API部分开发完成。
+
+
+
+### 5.5.3 OAuthOperations开发
+
+1. WeixinOAuth2Template
+
+   ```java
+   package com.yafey.security.core.social.weixin.connect;
+   
+   /**
+    * 完成微信的OAuth2认证流程的模板类。国内厂商实现的OAuth2每个都不同, spring默认提供的OAuth2Template适应不了，只能针对每个厂商自己微调。
+    *
+    */
+   public class WeixinOAuth2Template extends OAuth2Template {
+   	
+   	private String clientId;
+   	
+   	private String clientSecret;
+   
+   	private String accessTokenUrl;
+   	
+   	private static final String REFRESH_TOKEN_URL = "https://api.weixin.qq.com/sns/oauth2/refresh_token";
+   	
+   	private Logger logger = LoggerFactory.getLogger(getClass());
+   
+   	public WeixinOAuth2Template(String clientId, String clientSecret, String authorizeUrl, String accessTokenUrl) {
+   		super(clientId, clientSecret, authorizeUrl, accessTokenUrl);
+   		setUseParametersForClientAuthentication(true);
+   		this.clientId = clientId;
+   		this.clientSecret = clientSecret;
+   		this.accessTokenUrl = accessTokenUrl;
+   	}
+   	
+   	/* (non-Javadoc)
+   	 * @see org.springframework.social.oauth2.OAuth2Template#exchangeForAccess(java.lang.String, java.lang.String, org.springframework.util.MultiValueMap)
+   	 */
+   	@Override
+   	public AccessGrant exchangeForAccess(String authorizationCode, String redirectUri,
+   			MultiValueMap<String, String> parameters) {
+   		
+   		StringBuilder accessTokenRequestUrl = new StringBuilder(accessTokenUrl);
+   		
+   		accessTokenRequestUrl.append("?appid="+clientId);
+   		accessTokenRequestUrl.append("&secret="+clientSecret);
+   		accessTokenRequestUrl.append("&code="+authorizationCode);
+   		accessTokenRequestUrl.append("&grant_type=authorization_code");
+   		accessTokenRequestUrl.append("&redirect_uri="+redirectUri);
+   		
+   		return getAccessToken(accessTokenRequestUrl);
+   	}
+   	
+   	public AccessGrant refreshAccess(String refreshToken, MultiValueMap<String, String> additionalParameters) {
+   		
+   		StringBuilder refreshTokenUrl = new StringBuilder(REFRESH_TOKEN_URL);
+   		
+   		refreshTokenUrl.append("?appid="+clientId);
+   		refreshTokenUrl.append("&grant_type=refresh_token");
+   		refreshTokenUrl.append("&refresh_token="+refreshToken);
+   		
+   		return getAccessToken(refreshTokenUrl);
+   	}
+   
+   	@SuppressWarnings("unchecked")
+   	private AccessGrant getAccessToken(StringBuilder accessTokenRequestUrl) {
+   		
+   		logger.info("获取access_token, 请求URL: "+accessTokenRequestUrl.toString());
+   		
+   		String response = getRestTemplate().getForObject(accessTokenRequestUrl.toString(), String.class);
+   		
+   		logger.info("获取access_token, 响应内容: "+response);
+   		
+   		Map<String, Object> result = null;
+   		try {
+   			result = new ObjectMapper().readValue(response, Map.class);
+   		} catch (Exception e) {
+   			e.printStackTrace();
+   		}
+   		
+   		//返回错误码时直接返回空
+   		if(StringUtils.isNotBlank(MapUtils.getString(result, "errcode"))){
+   			String errcode = MapUtils.getString(result, "errcode");
+   			String errmsg = MapUtils.getString(result, "errmsg");
+   			throw new RuntimeException("获取access token失败, errcode:"+errcode+", errmsg:"+errmsg);
+   		}
+   		
+   		WeixinAccessGrant accessToken = new WeixinAccessGrant(
+   				MapUtils.getString(result, "access_token"), 
+   				MapUtils.getString(result, "scope"), 
+   				MapUtils.getString(result, "refresh_token"), 
+   				MapUtils.getLong(result, "expires_in"));
+   		
+   		accessToken.setOpenId(MapUtils.getString(result, "openid"));
+   		
+   		return accessToken;
+   	}
+   	
+   	/**
+   	 * 构建获取授权码的请求。也就是引导用户跳转到微信的地址。
+   	 */
+   	public String buildAuthenticateUrl(OAuth2Parameters parameters) {
+   		String url = super.buildAuthenticateUrl(parameters);
+   		url = url + "&appid="+clientId+"&scope=snsapi_login";
+   		return url;
+   	}
+   	
+   	public String buildAuthorizeUrl(OAuth2Parameters parameters) {
+   		return buildAuthenticateUrl(parameters);
+   	}
+   	
+   	/**
+   	 * 微信返回的contentType是html/text，添加相应的HttpMessageConverter来处理。
+   	 */
+   	protected RestTemplate createRestTemplate() {
+   		RestTemplate restTemplate = super.createRestTemplate();
+   		restTemplate.getMessageConverters().add(new StringHttpMessageConverter(Charset.forName("UTF-8")));
+   		return restTemplate;
+   	}
+   
+   }
+   ```
+
+2. WeixinAccessGrant
+
+   ```java
+   package com.yafey.security.core.social.weixin.connect;
+   
+   /**
+    * 微信的access_token信息。与标准OAuth2协议不同，微信在获取access_token时会同时返回openId,并没有单独的通过accessToke换取openId的服务
+    * 
+    * 所以在这里继承了标准AccessGrant，添加了openId字段，作为对微信access_token信息的封装。
+    *
+    */
+   @Data
+   public class WeixinAccessGrant extends AccessGrant {
+   	
+   	private static final long serialVersionUID = -7243374526633186782L;
+   	
+   	private String openId;
+   	
+   	public WeixinAccessGrant() {
+   		super("");
+   	}
+   
+   	public WeixinAccessGrant(String accessToken, String scope, String refreshToken, Long expiresIn) {
+   		super(accessToken, scope, refreshToken, expiresIn);
+   	}
+   
+   }
+   ```
+
+3. ServiceProvider
+
+   ```java
+   package com.yafey.security.core.social.weixin.connect;
+   
+   /**
+    * 微信的OAuth2流程处理器的提供器，供spring social的connect体系调用
+    */
+   public class WeixinServiceProvider extends AbstractOAuth2ServiceProvider<Weixin> {
+   	
+   	/**
+   	 * 微信获取授权码的url
+   	 */
+   	private static final String URL_AUTHORIZE = "https://open.weixin.qq.com/connect/qrconnect";
+   	/**
+   	 * 微信获取accessToken的url
+   	 */
+   	private static final String URL_ACCESS_TOKEN = "https://api.weixin.qq.com/sns/oauth2/access_token";
+   
+   	/**
+   	 * @param appId
+   	 * @param appSecret
+   	 */
+   	public WeixinServiceProvider(String appId, String appSecret) {
+   		super(new WeixinOAuth2Template(appId, appSecret,URL_AUTHORIZE,URL_ACCESS_TOKEN));
+   	}
+   
+   	@Override
+   	public Weixin getApi(String accessToken) {
+   		return new WeixinImpl(accessToken);
+   	}
+   }
+   ```
+
+4. ApiAdapter
+
+   ```java
+   package com.yafey.security.core.social.weixin.connect;
+   
+   /**
+    * 微信 api适配器，将微信 api的数据模型转为spring social的标准模型。
+    *
+    */
+   public class WeixinAdapter implements ApiAdapter<Weixin> {
+   	
+   	private String openId;
+   	
+   	public WeixinAdapter() {}
+   	
+   	public WeixinAdapter(String openId){
+   		this.openId = openId;
+   	}
+   
+   	@Override
+   	public boolean test(Weixin api) {
+   		return true;
+   	}
+   
+   	@Override
+   	public void setConnectionValues(Weixin api, ConnectionValues values) {
+   		WeixinUserInfo profile = api.getUserInfo(openId);
+   		values.setProviderUserId(profile.getOpenid());
+   		values.setDisplayName(profile.getNickname());
+   		values.setImageUrl(profile.getHeadimgurl());
+   	}
+   
+   	@Override
+   	public UserProfile fetchUserProfile(Weixin api) {
+   		return null;
+   	}
+   
+   	@Override
+   	public void updateStatus(Weixin api, String message) {
+   		//do nothing
+   	}
+   }
+   ```
+
+5. OAuth2ConnectionFactory
+
+   ```java
+   package com.yafey.security.core.social.weixin.connect;
+   
+   /**
+    * 微信连接工厂
+    */
+   public class WeixinConnectionFactory extends OAuth2ConnectionFactory<Weixin> {
+   
+   	public WeixinConnectionFactory(String providerId, String appId, String appSecret) {
+   		super(providerId, new WeixinServiceProvider(appId, appSecret), new WeixinAdapter());
+   	}
+   	
+   	/**
+   	 * 由于微信的openId是和accessToken一起返回的，所以在这里直接根据accessToken设置providerUserId即可，不用像QQ那样通过QQAdapter来获取
+   	 */
+   	@Override
+   	protected String extractProviderUserId(AccessGrant accessGrant) {
+   		if(accessGrant instanceof WeixinAccessGrant) {
+   			return ((WeixinAccessGrant)accessGrant).getOpenId();
+   		}
+   		return null;
+   	}
+   	
+   	public Connection<Weixin> createConnection(AccessGrant accessGrant) {
+   		return new OAuth2Connection<Weixin>(getProviderId(), extractProviderUserId(accessGrant), accessGrant.getAccessToken(),
+   				accessGrant.getRefreshToken(), accessGrant.getExpireTime(), getOAuth2ServiceProvider(), getApiAdapter(extractProviderUserId(accessGrant)));
+   	}
+   
+   	public Connection<Weixin> createConnection(ConnectionData data) {
+   		return new OAuth2Connection<Weixin>(data, getOAuth2ServiceProvider(), getApiAdapter(data.getProviderUserId()));
+   	}
+   	
+   	private ApiAdapter<Weixin> getApiAdapter(String providerUserId) {
+   		return new WeixinAdapter(providerUserId);
+   	}
+   	
+   	private OAuth2ServiceProvider<Weixin> getOAuth2ServiceProvider() {
+   		return (OAuth2ServiceProvider<Weixin>) getServiceProvider();
+   	}
+   }
+   ```
+
+6. 配置SocialConfig
+
+   ```java
+   package com.yafey.security.core.social;
+   
+   @Configuration
+   @EnableSocial  // 声明 使用 Spring Social
+   public class SocialConfig extends SocialConfigurerAdapter {
+   
+   	@Autowired
+   	private DataSource dataSource;
+   	@Autowired
+   	private SecurityProperties securityProperties;
+   	
+   	@Autowired(required = false)
+   	private ConnectionSignUp connectionSignUp;
+   
+   	@Override
+   	public UsersConnectionRepository getUsersConnectionRepository(ConnectionFactoryLocator connectionFactoryLocator) {
+   		JdbcUsersConnectionRepository repository = new JdbcUsersConnectionRepository(dataSource,
+   				connectionFactoryLocator, Encryptors.noOpText());
+   		repository.setTablePrefix("yafey_");  // 假设我们的 表名 规范里面有统一的前缀。
+   		if(connectionSignUp != null) {
+   			repository.setConnectionSignUp(connectionSignUp);
+   		}
+   		return repository;
+   	}
+   	
+   	@Bean
+   	public SpringSocialConfigurer yafeySocialSecurityConfig() {
+   		String filterProcessesUrl = securityProperties.getSocial().getFilterProcessesUrl();
+   		YafeySpringSocialConfigurer configurer = new YafeySpringSocialConfigurer(filterProcessesUrl);
+   		configurer.signupUrl(securityProperties.getBrowser().getSignUpUrl()); // 当找不到用户时，跳转到 注册页面。
+   		return configurer;
+   	}
+   	
+   	@Bean
+   	public ProviderSignInUtils providerSignInUtils(ConnectionFactoryLocator connectionFactoryLocator) {
+   		return new ProviderSignInUtils(connectionFactoryLocator,
+   				getUsersConnectionRepository(connectionFactoryLocator)) {
+   		};
+   	}
+   
+   }
+   ```
+
+7. WeixinAutoConfiguration
+
+   ```java
+   package com.yafey.security.core.social.weixin.config;
+   
+   /**
+    * 微信登录配置
+    */
+   @Configuration
+   @ConditionalOnProperty(prefix = "yafey.security.social.weixin", name = "app-id")
+   public class WeixinAutoConfiguration extends SocialAutoConfigurerAdapter {
+   
+   	@Autowired
+   	private SecurityProperties securityProperties;
+   
+   	@Override
+   	protected ConnectionFactory<?> createConnectionFactory() {
+   		WeixinProperties weixinConfig = securityProperties.getSocial().getWeixin();
+   		return new WeixinConnectionFactory(weixinConfig.getProviderId(), weixinConfig.getAppId(),
+   				weixinConfig.getAppSecret());
+   	}
+   	
+   }
+   ```
+
+   
 

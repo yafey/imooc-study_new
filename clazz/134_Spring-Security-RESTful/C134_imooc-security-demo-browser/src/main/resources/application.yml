@@ -31,10 +31,13 @@ yafey:
       image:
         length: 6
         width: 100
-        url: /users,/user/*
+        url: /users #,/user/*
     social:
+      filterProcessesUrl: /qqLogin
       qq:
         app-id: 
         app-secret: 
-        filterProcessUrl: /qqLogin
         providerId: callback.do
+      weixin:
+        app-id: wxd99431bbff8305a0
+        app-secret: 60f78681d063590a469f1b297feff3c4
