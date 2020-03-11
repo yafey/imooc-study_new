@@ -1766,3 +1766,322 @@ OK，API部分开发完成。
 
    
 
+## 5.6(5-8). 绑定和解绑处理
+
+> 参考 整理自 [Spring-Security源码分析十四-Spring-Social绑定与解绑/#绑定与解绑实现](https://niocoder.com/2018/02/02/Spring-Security源码分析十四-Spring-Social绑定与解绑/#绑定与解绑实现)
+
+绑定 与 QQ 登陆 流程本身是一样的， 不一样的地方是，在 QQ 登陆时，开始走流程的时候，是不知道 当前系统的 登陆的用户 是谁的，因为要在走完流程之后，根据 QQ 账号拿到的 UserID 去 登陆我们的系统。
+
+而 绑定 的时候，是已经知道 绑定的 UserID 是谁了，再去走流程，走完流程后，将 社交账号 与 UserID 建立关联关系。
+
+解绑就是删除`UserConnection`表数据。
+
+`Spring Social`默认在`ConnectController`类上已经帮我们实现了以上的需求。
+
+
+
+### 5.6.1. 服务接口分析
+
+1. 在 绑定 页面，我们需要拿到 所有 社交账号的 绑定 信息（包括支持哪些社交账号、及 哪些已经绑定、哪些没有绑定 等）。
+2. 绑定 操作。
+3. 解绑 操作。
+
+Spring Social 默认已实现上述 3 个 服务接口。但是这几个 服务接口 跟之前的有点不一样，它只提供了 数据， 没有提供 视图。
+
+
+
+#### 5.6.1.1. 获取状态 接口 分析 及实现
+
+Spring Social 实现了`/connect` 接口，返回了状态数据。
+
+**实现`connect/status `视图即可获得社交账号的绑定状态。**
+
+> Spring Social 源码分析
+>
+> ```java
+> package org.springframework.social.connect.web;
+> @Controller
+> @RequestMapping("/connect")
+> public class ConnectController implements InitializingBean {
+> 	
+> 	private String viewPath = "connect/";
+>     
+> 	@RequestMapping(method=RequestMethod.GET)
+> 	public String connectionStatus(NativeWebRequest request, Model model) {
+> 		setNoCache(request);
+> 		processFlash(request, model);
+> 		Map<String, List<Connection<?>>> connections = connectionRepository.findAllConnections();//根据userId查询UserConnection表
+> 		model.addAttribute("providerIds", connectionFactoryLocator.registeredProviderIds());//系统中已经注册的服务提供商		
+> 		model.addAttribute("connectionMap", connections);
+> 		return connectView();//返回connectView()
+> 	}
+> 	
+> 	protected String connectView() {
+> 		return getViewPath() + "status";// connect/status，Spring 会在 容器中 查找 这个视图。
+> 	}
+>     // ... 其他代码
+> }
+> ```
+>
+> ![image-20200311114421583](README_images/5/image-20200311114421583.png)
+
+
+
+
+##### 实现 connect/status 视图
+
+```java
+package com.yafey.security.core.social;
+
+@Component("connect/status") 
+public class SocialConnectionStatusView extends AbstractView {
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Override
+    protected void renderMergedOutputModel(Map<String, Object> model, HttpServletRequest request, HttpServletResponse  ) throws Exception {
+        Map<String, List<Connection<?>>> connections = (Map<String, List<Connection<?>>>) model.get("connectionMap");
+
+        Map<String, Boolean> result = new HashMap<>();
+        for (String key : connections.keySet()) {
+            result.put(key, CollectionUtils.isNotEmpty(connections.get(key)));
+        }
+
+        response.setContentType("application/json;charset=UTF-8");
+		response.getWriter().write(objectMapper.writeValueAsString(result));
+    }
+}
+```
+
+
+
+先去 标准登陆页面 http://localhost/self-login.html 登陆，再 访问 http://localhost/connect 查看 状态信息。
+
+注意：从这里开始，端口号 改成 80 。
+
+![connect.gif](README_images/5/connect.gif)
+
+#### 5.6.1.2. Spring Social 与 MySQL8 的坑
+
+> 整理自 ： [springsocial/oauth2---第三方登陆之QQ登陆7【注册逻辑之mysql里rank为关键字问题解决+springsocial源码解读③】](https://blog.csdn.net/nrsc272420199/article/details/100749424)
+
+##### mysql8 里 rank 为关键字问题解决
+
+填上用户名+密码点击注册发现会出现如下bug：
+
+![在这里插入图片描述](README_images/5/20190912024325681.png)
+
+
+
+我把图中语句放在navicat里运行，发现仍然报语法错误，此时突然想到之前写的一篇文章：《[【MySQL报错处理】[Err] 1064 、[Err] 1055、JdbcUsersConnectionRepository.sql建表报错](https://blog.csdn.net/nrsc272420199/article/details/98803281)》，于是豁然开朗，其实rank在我的mysql版本里是一个保留关键字，因此需要再将rank弄成下面的样子才可以 （即 加上 反引号）。
+
+![在这里插入图片描述](README_images/5/20190912024438317.png)
+
+为什么会报出这个bug呢？跟踪springsocial源码发现在执行 providerSignInUtils.doPostSignUp(userId, new ServletWebRequest(request));语句进行存储数据时，会调用JdbcConnectionRepository类里的如下方法：
+
+```java
+@Transactional
+public void addConnection(Connection<?> connection) {
+	try {
+		ConnectionData data = connection.createData();
+		int rank = jdbcTemplate.queryForObject("select coalesce(max(rank) + 1, 1) as rank from " + tablePrefix + "UserConnection where userId = ? and providerId = ?", new Object[]{ userId, data.getProviderId() }, Integer.class);
+		jdbcTemplate.update("insert into " + tablePrefix + "UserConnection (userId, providerId, providerUserId, rank, displayName, profileUrl, imageUrl, accessToken, secret, refreshToken, expireTime) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				userId, data.getProviderId(), data.getProviderUserId(), rank, data.getDisplayName(), data.getProfileUrl(), data.getImageUrl(), encrypt(data.getAccessToken()), encrypt(data.getSecret()), encrypt(data.getRefreshToken()), data.getExpireTime());
+	} catch (DuplicateKeyException e) {
+		throw new DuplicateConnectionException(connection.getKey());
+	}
+}
+```
+
+追踪到该方法时，真有种不看不知道一看吓一跳的感觉，因为JdbcConnectionRepository这个类里很多方法都用到了rank字段，那操作数据库时肯定就会有很多的问题了。但是仔细分析一下可以看到该类是一个没有被public，private等字段修饰的类，即该类只允许同一个包中的类进行访问。那它在哪个包呢？其实就是JdbcUsersConnectionRepository所在的包，看下图：
+
+![在这里插入图片描述](README_images/5/20190912030326735.png)
+
+
+
+再仔细一看，可以在JdbcUsersConnectionRepository类里看到如下方法：
+
+```java
+public ConnectionRepository createConnectionRepository(String userId) {
+	if (userId == null) {
+		throw new IllegalArgumentException("userId cannot be null");
+	}
+	return new JdbcConnectionRepository(userId, jdbcTemplate, connectionFactoryLocator, textEncryptor, tablePrefix);
+}
+```
+
+即JdbcConnectionRepository类是在JdbcUsersConnectionRepository类里new出来的。那这个问题就好解决了。
+
+##### 解决方案
+
+1. 将数据库里的 `rank` 字段改成了 `_rank` —》感觉尽量不要用mysql的保留关键字
+
+2. 将 org.springframework.social.connect.jdbc 包下的 `JdbcUsersConnectionRepository` 类和`JdbcConnectionRepository` 类拷贝了一份放到了我的项目目录中—》放在了com.yafey.security.core.social.jdbc 包路径下
+
+3. 将 `JdbcConnectionRepository` 中的所有 `rank` 字段改成了 `_rank` 
+
+4. 将 `UsersConnectionRepository` 换成了我自己的刚复制的 `YafeyJdbcUsersConnectionRepository` 即：
+
+   ```java
+   package com.yafey.security.core.social;
+   
+   public class SocialConfig extends SocialConfigurerAdapter {
+   	@Override
+   	public UsersConnectionRepository getUsersConnectionRepository(ConnectionFactoryLocator connectionFactoryLocator) {
+   		/**
+            * 第二个参数的作用：根据条件查找该用哪个ConnectionFactory来构建Connection对象
+            * 第三个参数的作用: 对插入到userconnection表中的数据进行加密和解密
+            */
+           YafeyJdbcUsersConnectionRepository repository = new YafeyJdbcUsersConnectionRepository(dataSource,
+   				connectionFactoryLocator, Encryptors.noOpText());
+   		repository.setTablePrefix("yafey_");  // 假设我们的 表名 规范里面有统一的前缀。
+   		if(connectionSignUp != null) {
+   			repository.setConnectionSignUp(connectionSignUp);
+   		}
+   		return repository;
+   	}
+       ... 其他代码 
+   }
+   ```
+
+   
+
+
+
+### 5.6.2. 绑定(以 微信 为例)
+
+在 browser 项目下 新建 yafey-binding.html
+
+注意： 表单提交的默认接口是   `/connect/{providerId}` (只接受 POST 方式) ， 定义在 org.springframework.social.connect.web.ConnectController.connect(String, NativeWebRequest)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>标准绑定页面</title>
+</head>
+<body>
+	<h2>标准绑定页面</h2>
+	<!-- 格式  /connect/{providerId} -->
+	<form action="/connect/weixin" method="post">
+		<button type="submit">绑定微信</button>
+	</form>
+</body>
+</html>
+```
+
+修改 hosts ， 增加下面的映射关系。
+
+```
+127.0.0.1       www.pinzhi365.com
+```
+
+需要 增加 `connect/weixinConnected` 视图
+
+![image-20200311173143726](README_images/5/image-20200311173143726.png)
+
+
+
+```java
+package com.yafey.security.core.social;
+
+public class YaFeyConnectView extends AbstractView {
+
+	@Override
+	protected void renderMergedOutputModel(Map<String, Object> model, HttpServletRequest request,
+			HttpServletResponse response) throws Exception {
+
+		response.setContentType("text/html;charset=UTF-8");
+		if (model.get("connections") == null) {
+			response.getWriter().write("<h3>解绑成功</h3>");
+		} else {
+			response.getWriter().write("<h3>绑定成功</h3>");
+		}
+	}
+}
+```
+
+为了 复用 上面的 view ， 我们在 SocialConfig 中 新增如下配置。
+
+```java
+package com.yafey.security.core.social;
+public class SocialConfig extends SocialConfigurerAdapter {
+	// connect/weixinConnected : 绑定。
+	// connect/weixinConnect : 解绑。
+	@Bean({"connect/weixinConnect", "connect/weixinConnected"})
+	@ConditionalOnMissingBean(name = "weixinConnectedView")
+	public View weixinConnectedView() {
+		return new YaFeyConnectView();
+	}
+}
+```
+
+
+
+http://www.pinzhi365.com/self-login.html 登录， 然后在 http://www.pinzhi365.com/yafey-binding.html 页面 点击 绑定。
+
+![binding.gif](README_images/5/binding.gif)
+
+
+
+以上，完成 绑定。
+
+
+
+### 5.6.3. 解绑
+
+~~在 浏览器中 使用 RestClient 工具 发送 `Delete` 方式的 请求到 http://www.pinzhi365.com/connect/weixin~~
+
+添加 解绑 按钮
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>标准绑定页面</title>
+</head>
+<body>
+	<h2>标准绑定页面</h2>
+	<!-- 格式  /connect/{providerId} -->
+	<form action="/connect/weixin" method="post">
+		<button type="submit">绑定微信</button>
+	</form>
+
+	<button id="DeleteWX">解绑微信</button>
+</body>
+<script type="text/javascript">
+	// 参考自： https://developer.mozilla.org/zh-CN/docs/Web/API/Fetch_API/Using_Fetch
+	document.getElementById("DeleteWX").onclick=function() {
+        // 格式  /connect/{providerId}
+		DeleteData('http://www.pinzhi365.com/connect/weixin')
+		.then(data => console.log(data)) // JSON from `response.json()` call
+		.catch(error => console.error(error));
+	}
+	
+	function DeleteData(url) {
+		// Default options are marked with *
+		return fetch(url, {
+		  //body: JSON.stringify(data), // must match 'Content-Type' header
+		  cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+		  // 要改为确保浏览器不在请求中包含凭据，请使用 credentials: 'omit'。
+		  credentials: 'same-origin', // include, same-origin, *omit
+		  headers: {
+		    'user-agent': 'Mozilla/4.0 MDN Example',
+		    'content-type': 'application/json'
+		  },
+		  method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
+		  mode: 'cors', // no-cors, cors, *same-origin
+		  redirect: 'manual', // manual, *follow, error
+		  referrer: 'no-referrer', // *client, no-referrer
+		})
+		.then(response => console.log(response) ) // parses response to JSON
+	}
+</script>
+</html>
+```
+
+查看 console 控制台， HTTP 返回状态码 应该是 302 ， 查看 数据库，数据被删除了。
+

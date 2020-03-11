@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>标准绑定页面</title>
+</head>
+<body>
+	<h2>标准绑定页面</h2>
+	<!-- 格式  /connect/{providerId} -->
+	<form action="/connect/weixin" method="post">
+		<button type="submit">绑定微信</button>
+	</form>
+
+	<button id="DeleteWX">解绑微信</button>
+</body>
+<script type="text/javascript">
+	// 参考自： https://developer.mozilla.org/zh-CN/docs/Web/API/Fetch_API/Using_Fetch
+	document.getElementById("DeleteWX").onclick=function() {
+		DeleteData('http://www.pinzhi365.com/connect/weixin')
+		.then(data => console.log(data)) // JSON from `response.json()` call
+		.catch(error => console.error(error));
+	}
+	
+	function DeleteData(url) {
+		// Default options are marked with *
+		return fetch(url, {
+		  //body: JSON.stringify(data), // must match 'Content-Type' header
+		  cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+		  // 要改为确保浏览器不在请求中包含凭据，请使用 credentials: 'omit'。
+		  credentials: 'same-origin', // include, same-origin, *omit
+		  headers: {
+		    'user-agent': 'Mozilla/4.0 MDN Example',
+		    'content-type': 'application/json'
+		  },
+		  method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
+		  mode: 'cors', // no-cors, cors, *same-origin
+		  redirect: 'manual', // manual, *follow, error
+		  referrer: 'no-referrer', // *client, no-referrer
+		})
+		.then(response => console.log(response) ) // parses response to JSON
+	}
+</script>
+</html>
