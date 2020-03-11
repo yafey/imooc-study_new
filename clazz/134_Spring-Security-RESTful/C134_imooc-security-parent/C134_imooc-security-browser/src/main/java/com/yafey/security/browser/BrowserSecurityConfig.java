@@ -13,6 +13,7 @@ import org.springframework.security.web.authentication.rememberme.JdbcTokenRepos
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.social.security.SpringSocialConfigurer;
 
+import com.yafey.security.browser.session.YaFeyExpiredSessionStrategy;
 import com.yafey.security.core.authentication.AbstractChannelSecurityConfig;
 import com.yafey.security.core.authentication.mobile.SmsCodeAuthenticationSecurityConfig;
 import com.yafey.security.core.properties.SecurityConstants;
@@ -69,9 +70,16 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 				.tokenValiditySeconds(securityProperties.getBrowser().getRememberMeSeconds())
 				.userDetailsService(userDetailsService)
 				.and()
-			.sessionManagement() //session超时管理
-				 .invalidSessionUrl("/session/invalid") //session超时跳向的url
-				 .and()
+			//session相关的控制
+			.sessionManagement()
+				//指定session超时跳向的url
+				.invalidSessionUrl("/session/invalid")
+				//指定最大的session并发数量---即一个用户只能同时在一处登陆（腾讯视频的账号好像就只能同时允许2-3个手机同时登陆）
+				.maximumSessions(1)
+				//超过最大session并发数量时的策略
+				.expiredSessionStrategy(new YaFeyExpiredSessionStrategy())
+				.and()
+				.and()
 			.authorizeRequests() // 授权 ,除了不需要校验的，其他请求都需要校验
 				.antMatchers(
 					SecurityConstants.DEFAULT_UNAUTHENTICATION_URL,

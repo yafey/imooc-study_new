@@ -3,8 +3,6 @@ typora-root-url: ./
 typora-copy-images-to: ./README_images/5
 ---
 
-
-
 [返回](./README.md)
 
 <details>
@@ -2169,3 +2167,89 @@ server:
 session超时后访问 http://localhost/users 会跳转到如下页面，说明配置已经成功。
 
 ![image-20200311221834409](README_images/5/image-20200311221834409.png)
+
+
+
+### 5.7.3. session 的并发控制
+
+> 整理自 https://blog.csdn.net/nrsc272420199/article/details/101110879
+
+#### 5.7.3.1. 是什么？
+
+以腾讯视频会员为例，假如我的账号买了会员，则我可以享受看视频免广告，某些热门电视剧提前看等福利。若我的朋友也想享受这些福利又不想花钱买会员，则我可以让他用我的号登陆。但是假如我有很多很多的朋友都不想买会员，都想用我的号登陆，那腾讯肯定感觉自己就亏了，所以腾讯视频`最大可同时登陆的设备是有数量限制的`，超过这个限制，前面的账户就会被踢下来，这就是所谓的session并发控制。
+
+
+
+**spring security 在解决该问题时有两种策略：**
+
+- 超过设置的最大session并发数量时，把之前的session失效掉，即踢掉前面的登陆
+- 超过设置的最大session并发数量时，阻止后面的登陆
+
+
+
+
+
+#### 5.7.3.2. 超过最大并发数量时，踢掉前面的登陆
+
+在配置文件BrowserSecurityConfig里指定最大的并发数量
+
+```java
+//session相关的控制
+.sessionManagement()
+	//指定session超时跳向的url
+	.invalidSessionUrl("/session/invalid")
+	//指定最大的session并发数量---即一个用户只能同时在一处登陆（腾讯视频的账号好像就只能同时允许2-3个手机同时登陆）
+	.maximumSessions(1)
+	//超过最大session并发数量时的策略
+	.expiredSessionStrategy(new YaFeyExpiredSessionStrategy())
+	.and()
+	.and()
+```
+
+超过最大session并发数量时的策略
+
+```java
+package com.yafey.security.browser.session;
+
+/**
+ * 如果设置的session并发策略为一个账户第二次登陆会将第一次给踢下来
+ * 则第一次登陆的用户再访问我们的项目时会进入到该类
+ * event里封装了request、response信息
+ */
+@Slf4j
+public class YaFeyExpiredSessionStrategy implements SessionInformationExpiredStrategy {
+
+    @Override
+    public void onExpiredSessionDetected(SessionInformationExpiredEvent event) throws IOException, ServletException {
+        String header = event.getRequest().getHeader("user-agent");
+        log.info("浏览器信息为：{}", header);
+
+        //告诉前端并发登陆异常
+        event.getResponse().setContentType("application/json;charset=UTF-8");
+        event.getResponse().getWriter().write("并发登陆！！！<br/>"+header);
+    }
+}
+```
+
+
+
+![image-20200311230717524](README_images/5/image-20200311230717524.png)
+
+#### 5.7.3.3. 超过最大并发数量时，阻止后面的登陆
+
+BrowserSecurityConfig 中修改为 `.maxSessionsPreventsLogin(true)` , 感觉貌似很少会用到这种策略
+
+```java
+//session相关的控制
+.sessionManagement()
+  //指定session超时跳向的url
+  .invalidSessionUrl("/session/invalid")
+  //指定最大的session并发数量---即一个用户只能同时在一处登陆（腾讯视频的账号好像就只能同时允许2-3个手机同时登陆）
+  .maximumSessions(1)
+  //当超过指定的最大session并发数量时，阻止后面的登陆（感觉貌似很少会用到这种策略）
+  .maxSessionsPreventsLogin(true)
+  //超过最大session并发数量时的策略
+	.expiredSessionStrategy(new YaFeyExpiredSessionStrategy())
+	.and()
+	.and()
+```
