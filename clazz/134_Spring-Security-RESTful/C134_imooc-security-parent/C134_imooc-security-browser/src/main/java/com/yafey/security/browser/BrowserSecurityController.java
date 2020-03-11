@@ -37,10 +37,9 @@ public class BrowserSecurityController {
 
 	@Autowired
 	private SecurityProperties securityProperties;
-	
+
 	@Autowired
 	private ProviderSignInUtils providerSignInUtils;
-
 
 	/**
 	 * 当需要身份认证时，跳转到这里
@@ -60,16 +59,17 @@ public class BrowserSecurityController {
 		if (savedRequest != null) {
 			String targetUrl = savedRequest.getRedirectUrl();
 			log.info("引发跳转的请求是:" + targetUrl);
-	        //判断引发跳转的是html 还是 不是html
+			// 判断引发跳转的是html 还是 不是html
 			if (StringUtils.endsWithIgnoreCase(targetUrl, ".html")) {
-				redirectStrategy.sendRedirect(request, response
-						, securityProperties.getBrowser().getLoginPage()  // 可以使用自定义的 login 页面，或者使用默认的页面
-						);
+				redirectStrategy.sendRedirect(request, response, securityProperties.getBrowser().getLoginPage() // 可以使用自定义的
+																												// login
+																												// 页面，或者使用默认的页面
+				);
 			}
 		}
 		return new SimpleResponse("访问的服务需要身份认证，请引导用户到登录页");
 	}
-	
+
 	@GetMapping("/social/user")
 	public SocialUserInfo getSocialUserInfo(HttpServletRequest request) {
 		SocialUserInfo userInfo = new SocialUserInfo();
@@ -79,6 +79,17 @@ public class BrowserSecurityController {
 		userInfo.setNickname(connection.getDisplayName());
 		userInfo.setHeadimg(connection.getImageUrl());
 		return userInfo;
+	}
+
+	/***
+	 * session超时的时候会请求该方法
+	 * @return
+	 */
+	@GetMapping("/session/invalid")
+	@ResponseStatus(code = HttpStatus.UNAUTHORIZED)
+	public SimpleResponse sessionInvalid() {
+		String message = "session 失效";
+		return new SimpleResponse(message);
 	}
 
 }

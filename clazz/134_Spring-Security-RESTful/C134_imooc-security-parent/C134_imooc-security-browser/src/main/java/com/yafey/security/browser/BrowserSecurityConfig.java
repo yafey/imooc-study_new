@@ -69,6 +69,9 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 				.tokenValiditySeconds(securityProperties.getBrowser().getRememberMeSeconds())
 				.userDetailsService(userDetailsService)
 				.and()
+			.sessionManagement() //session超时管理
+				 .invalidSessionUrl("/session/invalid") //session超时跳向的url
+				 .and()
 			.authorizeRequests() // 授权 ,除了不需要校验的，其他请求都需要校验
 				.antMatchers(
 					SecurityConstants.DEFAULT_UNAUTHENTICATION_URL,
@@ -77,6 +80,7 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 					SecurityConstants.DEFAULT_VALIDATE_CODE_URL_PREFIX+"/*"
 					,securityProperties.getBrowser().getSignUpUrl()
 					,"/user/regist"
+					,"/session/invalid"
 						).permitAll()  //登陆页面 及 配置的 url 不需要校验
 				.anyRequest()     //任何请求
 				.authenticated()  //都需要身份认证

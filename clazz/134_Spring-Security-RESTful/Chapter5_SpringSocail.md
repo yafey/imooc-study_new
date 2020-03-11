@@ -2085,3 +2085,87 @@ http://www.pinzhi365.com/self-login.html 登录， 然后在 http://www.pinzhi36
 
 查看 console 控制台， HTTP 返回状态码 应该是 302 ， 查看 数据库，数据被删除了。
 
+
+
+
+
+## 5.7(5-9). Session 管理
+
+- Session 超时处理 （如何控制超时时间 及 ）
+- Session 并发控制 （后面的登陆 把 前面的登陆 踢掉）
+- 集群 Session 管理
+
+
+
+> 整理自 ： https://blog.csdn.net/nrsc272420199/article/details/101098871
+
+
+
+### 5.7.1. Session 超时时间设置
+
+springboot 项目 session 超时时间设置很简单，只需要在 yml 或 properties 文件里进行配置一下就可以了。
+
+`springboot的版本是 2.1.7.RELEASE`，在yml里配置如下：
+
+```yaml
+server:
+  servlet:
+    session:
+      timeout: 60 # session 超时时间为60秒,这是最短的分钟数
+```
+
+<span style="color:red">`注意1：`早一点的 springboot 版本如 1.5.6.RELEASE 的配置可能如下：</span>
+
+```yaml
+server:
+  session:
+    timeout: 60 # session超时时间为60秒,这是最短的分钟数
+```
+
+<span style="color:red">注意2：如果设置的超时时间不满一分钟，将按一分钟来算，超过1分钟才按照你设置的超时时间来算。</span>
+
+- springboot 的版本为 2.1.7.RELEASE 的可以参看 TomcatServletWebServerFactory 这个类里对 session-timeout 的控制
+- springboot 的版本为 1.5.6.RELEASE 的可以参看 TomcatEmbeddedServletContainerFactory 这个类
+
+![image-20200311213233120](README_images/5/image-20200311213233120.png)
+
+### 5.7.2. 如何通知用户 Session 超时
+
+在之前实现的代码里，是没对用户session超时做过特殊处理的，因此当session超时的时候会走之前写的用户认证失败的逻辑，即
+
+- 访问url里以.html结尾时重定向到登陆页
+- 不以.html结尾时则返回一个json字符串
+
+那如果是session超时的情况下，如何给用户一个特殊的提示，告诉他们是因为session超时引起的认证、校验失败呢？需要如下三步：
+
+1. 在配置文件 BrowserSecurityConfig 里加上 session 超时跳向的 url
+
+   ```java
+    .sessionManagement() //session超时管理
+    .invalidSessionUrl("/session/invalid") //session超时跳向的url
+   ```
+
+2. 在配置文件BrowserSecurityConfig里为指定session超时跳向的url授权
+
+   ![在这里插入图片描述](README_images/5/20190921114005662.png)
+
+3. BrowserSecurityController.java 中 写一个controller方法来处理session超时的提示逻辑
+
+   ```java
+   /***
+    * session超时的时候会请求该方法
+    * @return
+    */
+   @GetMapping("/session/invalid")
+   @ResponseStatus(code = HttpStatus.UNAUTHORIZED)
+   public SimpleResponse sessionInvalid() {
+   	String message = "session 失效";
+   	return new SimpleResponse(message);
+   }
+   ```
+
+   
+
+session超时后访问 http://localhost/users 会跳转到如下页面，说明配置已经成功。
+
+![image-20200311221834409](README_images/5/image-20200311221834409.png)
