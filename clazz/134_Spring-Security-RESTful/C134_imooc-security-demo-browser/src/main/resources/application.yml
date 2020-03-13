@@ -33,8 +33,8 @@ yafey:
   security:
     code:
       image:
-        length: 6
-        width: 100
+        length: 1
+#        width: 50  # 请求参数中可以覆盖该属性。
         url: /users #,/user/*
     social:
       filterProcessesUrl: /qqLogin

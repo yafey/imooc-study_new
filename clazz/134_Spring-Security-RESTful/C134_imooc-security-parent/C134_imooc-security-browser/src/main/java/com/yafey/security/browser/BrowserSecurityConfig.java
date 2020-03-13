@@ -11,9 +11,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.security.web.session.InvalidSessionStrategy;
+import org.springframework.security.web.session.SessionInformationExpiredStrategy;
 import org.springframework.social.security.SpringSocialConfigurer;
 
-import com.yafey.security.browser.session.YaFeyExpiredSessionStrategy;
 import com.yafey.security.core.authentication.AbstractChannelSecurityConfig;
 import com.yafey.security.core.authentication.mobile.SmsCodeAuthenticationSecurityConfig;
 import com.yafey.security.core.properties.SecurityConstants;
@@ -40,6 +41,17 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 	
 	@Autowired
 	private SpringSocialConfigurer yafeySocialSecurityConfig;
+	
+    /**
+     * session失效策略
+     */
+    @Autowired
+    private InvalidSessionStrategy invalidSessionStrategy;
+    /***
+     * session并发策略
+     */
+    @Autowired
+    private SessionInformationExpiredStrategy sessionInformationExpiredStrategy;
 	
     @Bean
     public PersistentTokenRepository persistentTokenRepository(){
@@ -72,12 +84,17 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 				.and()
 			//session相关的控制
 			.sessionManagement()
-				//指定session超时跳向的url
-				.invalidSessionUrl("/session/invalid")
+				//指定session失效策略
+	            .invalidSessionStrategy(invalidSessionStrategy)
+//				//指定session超时跳向的url
+//				.invalidSessionUrl("/session/invalid")
 				//指定最大的session并发数量---即一个用户只能同时在一处登陆（腾讯视频的账号好像就只能同时允许2-3个手机同时登陆）
-				.maximumSessions(1)
+				.maximumSessions(securityProperties.getBrowser().getSession().getMaximumSessions())
+//				//当超过指定的最大session并发数量时，阻止后面的登陆（感觉貌似很少会用到这种策略）
+//				.maxSessionsPreventsLogin(true)
+				.maxSessionsPreventsLogin(securityProperties.getBrowser().getSession().isMaxSessionsPreventsLogin())
 				//超过最大session并发数量时的策略
-				.expiredSessionStrategy(new YaFeyExpiredSessionStrategy())
+				.expiredSessionStrategy(sessionInformationExpiredStrategy)
 				.and()
 				.and()
 			.authorizeRequests() // 授权 ,除了不需要校验的，其他请求都需要校验
@@ -87,8 +104,9 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 					securityProperties.getBrowser().getLoginPage(),
 					SecurityConstants.DEFAULT_VALIDATE_CODE_URL_PREFIX+"/*"
 					,securityProperties.getBrowser().getSignUpUrl()
+					//session失效默认的跳转地址
+                    ,securityProperties.getBrowser().getSession().getSessionInvalidUrl()
 					,"/user/regist"
-					,"/session/invalid"
 						).permitAll()  //登陆页面 及 配置的 url 不需要校验
 				.anyRequest()     //任何请求
 				.authenticated()  //都需要身份认证

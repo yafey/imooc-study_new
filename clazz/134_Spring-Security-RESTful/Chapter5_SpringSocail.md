@@ -2253,3 +2253,11 @@ BrowserSecurityConfig 中修改为 `.maxSessionsPreventsLogin(true)` , 感觉貌
 	.and()
 	.and()
 ```
+
+
+
+### 5.7.4. Session 管理 代码重构
+
+session 超时后， 访问 html 结尾的 url （如：http://localhost/me.html) 引导到 默认的 html 页面。详见 提交。
+
+![image-20200313134721656](README_images/5/image-20200313134721656.png)
