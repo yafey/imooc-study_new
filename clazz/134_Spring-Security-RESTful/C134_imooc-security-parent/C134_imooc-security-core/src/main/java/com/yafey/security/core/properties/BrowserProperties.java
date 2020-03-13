@@ -13,5 +13,7 @@ public class BrowserProperties {
 	private String signUpUrl = "/yafey-signUp.html";
 	
 	private SessionProperties session = new SessionProperties();
+	
+	private String signOutUrl="/";
 
 }

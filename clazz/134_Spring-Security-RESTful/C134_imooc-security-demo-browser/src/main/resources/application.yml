@@ -6,18 +6,18 @@ spring:
   # Cannot determine embedded database driver class for database type NONE
   datasource:  
     # Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connection must be established by default if explicit option isn't set. For compliance with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and provide truststore for server certificate verification.
-    url: jdbc:mysql://yuefei.cf:13306/imooc_c134?useUnicode=true&characterEncoding=UTF-8&useSSL=false&characterSetResults=utf8&serverTimezone=GMT
+    url: jdbc:mysql://192.168.99.218:13306/imooc_c134?useUnicode=true&characterEncoding=UTF-8&useSSL=false&characterSetResults=utf8&serverTimezone=GMT
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
   # No Spring Session store is configured: set the 'spring.session.store-type' property
-  redis:   ###本地环境下不配置也可以
-    host: localhost
-    port: 6379
-#    password: 123
-#    database: 0
+#  redis:   ###本地环境下不配置也可以
+#    host: localhost
+#    port: 6379
+##    password: 123
+##    database: 0
   session:
-    store-type: redis  ### 指定用什么存储session信息---可选项可参看源码StoreType枚举类
+    store-type: none  # redis  ### 指定用什么存储session信息---可选项可参看源码StoreType枚举类
 # 禁用 身份认证
 #security:
 #  basic:
@@ -33,9 +33,10 @@ spring:
 #    browser:
 #      loginType: REDIRECT
 yafey:
-  browser:
-    signUpUrl: /demo-signUp.html
   security:
+    browser:
+      signUpUrl: /demo-signUp.html
+      signOutUrl: /yafey-logout.html
     code:
       image:
         length: 1

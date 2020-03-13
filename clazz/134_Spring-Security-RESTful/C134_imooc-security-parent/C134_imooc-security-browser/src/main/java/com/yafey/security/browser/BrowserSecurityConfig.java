@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.security.web.session.InvalidSessionStrategy;
@@ -42,6 +43,8 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 	@Autowired
 	private SpringSocialConfigurer yafeySocialSecurityConfig;
 	
+	@Autowired
+	private LogoutSuccessHandler logoutSuccessHandler;
     /**
      * session失效策略
      */
@@ -82,6 +85,17 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 				.tokenValiditySeconds(securityProperties.getBrowser().getRememberMeSeconds())
 				.userDetailsService(userDetailsService)
 				.and()
+			//退出登陆相关的逻辑
+			.logout()
+				//自定义退出的url---默认的为/logout
+				.logoutUrl("/logout")
+				//自定义退出成功处理器
+				.logoutSuccessHandler(logoutSuccessHandler)
+				// 自定义退出成功后跳转的url 与 logoutSuccessHandler 互斥
+				//.logoutSuccessUrl("/index")
+				//指定退出成功后删除的cookie
+				.deleteCookies("JSESSIONID")
+				.and()
 			//session相关的控制
 			.sessionManagement()
 				//指定session失效策略
@@ -98,7 +112,7 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 				.and()
 				.and()
 			.authorizeRequests() // 授权 ,除了不需要校验的，其他请求都需要校验
-				.antMatchers(
+				.antMatchers( //配置不用进行认证校验的url
 					SecurityConstants.DEFAULT_UNAUTHENTICATION_URL,
 					SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_MOBILE,
 					securityProperties.getBrowser().getLoginPage(),
@@ -106,8 +120,10 @@ public class BrowserSecurityConfig extends AbstractChannelSecurityConfig {
 					,securityProperties.getBrowser().getSignUpUrl()
 					//session失效默认的跳转地址
                     ,securityProperties.getBrowser().getSession().getSessionInvalidUrl()
+                    //退出登陆默认跳转的url
+                    ,securityProperties.getBrowser().getSignOutUrl()
 					,"/user/regist"
-						).permitAll()  //登陆页面 及 配置的 url 不需要校验
+						).permitAll() 
 				.anyRequest()     //任何请求
 				.authenticated()  //都需要身份认证
 				.and()

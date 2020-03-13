@@ -4,9 +4,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.session.InvalidSessionStrategy;
 import org.springframework.security.web.session.SessionInformationExpiredStrategy;
 
+import com.yafey.security.browser.logout.YafeyLogoutSuccessHandler;
 import com.yafey.security.browser.session.YaFeyExpiredSessionStrategy;
 import com.yafey.security.browser.session.YaFeyInvalidSessionStrategy;
 import com.yafey.security.core.properties.SecurityProperties;
@@ -27,6 +29,17 @@ public class BrowserSecurityBeanConfig {
 	@ConditionalOnMissingBean(SessionInformationExpiredStrategy.class)
 	public SessionInformationExpiredStrategy sessionInformationExpiredStrategy(){
 		return new YaFeyExpiredSessionStrategy(securityProperties.getBrowser().getSession().getSessionInvalidUrl());
+	}
+	
+	/**
+	 * 退出时的处理策略配置
+	 * 
+	 * @return
+	 */
+	@Bean
+	@ConditionalOnMissingBean(LogoutSuccessHandler.class)
+	public LogoutSuccessHandler logoutSuccessHandler(){
+		return new YafeyLogoutSuccessHandler(securityProperties.getBrowser().getSignOutUrl());
 	}
 	
 }

@@ -2410,3 +2410,133 @@ org.springframework.data.redis.serializer.SerializationException: Cannot seriali
   - ValidateCode 实现 Serializable 接口。
   - BufferedImage 对象因为无法 实现 Serializable 接口。换个思路，修改代码，我们不需要把 图片保存到 session 中， 只需要把 验证码 放到 session 中即可。
 
+
+
+## 5.9(5-11). 退出 处理
+
+> 整理自 ：
+>
+> https://blog.csdn.net/nrsc272420199/article/details/101150634
+>
+> https://blog.csdn.net/dandandeshangni/article/details/79098629
+
+- 如何退出登陆
+- Spring Security 默认的 退出处理逻辑
+- 与 退出登陆 相关的配置
+
+
+
+### 5.9.1. spring-security默认退出处理逻辑
+
+1. 清除`Cookie`
+2. 清除当前用户的`remember-me`记录
+3. 使当前`session`失效
+4. 清空当前的`SecurityContext`
+5. 重定向到登录界面
+
+`Spring Security`的退出请求（默认为`/logout`）由 [LogoutFilter](https://longfeizheng.github.io/2018/01/05/Spring-Security源码分析二-Spring-Security授权过程/#源码分析 "https://longfeizheng.github.io/2018/01/05/Spring-Security源码分析二-Spring-Security授权过程/#源码分析") 过滤器拦截处理。
+
+
+
+
+
+### 5.9.2. 自定义退出登陆的一些处理逻辑
+
+demo-index.html 添加链接
+
+```html
+<a href="/signOut">退出</a>
+```
+
+
+
+在配置文件里自定义退出登陆的一些处理逻辑
+
+```java
+.and()
+   //退出登陆相关的逻辑
+   .logout()
+   //自定义退出的url---默认的为/logout
+   .logoutUrl("/logout")
+   //自定义退出成功处理器
+   .logoutSuccessHandler(logoutSuccessHandler)
+   //自定义退出成功后跳转的url与logoutSuccessHandler互斥
+   //.logoutSuccessUrl("/index")
+   //指定退出成功后删除的cookie
+   .deleteCookies("JSESSIONID")
+```
+
+不要忘记对涉及到的URL进行授权
+
+```java
+.antMatchers( //配置不用进行认证校验的url
+	SecurityConstants.DEFAULT_UNAUTHENTICATION_URL,
+	SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_MOBILE,
+	securityProperties.getBrowser().getLoginPage(),
+	SecurityConstants.DEFAULT_VALIDATE_CODE_URL_PREFIX+"/*"
+	,securityProperties.getBrowser().getSignUpUrl()
+	//session失效默认的跳转地址
+    ,securityProperties.getBrowser().getSession().getSessionInvalidUrl()
+    //退出登陆默认跳转的url
+    ,securityProperties.getBrowser().getSignOutUrl()
+	,"/user/regist"
+		).permitAll()
+```
+
+自定义的退出成功处理器
+
+```java
+package com.yafey.security.browser.logout;
+
+@Slf4j
+public class YafeyLogoutSuccessHandler implements LogoutSuccessHandler {
+    /**
+     * 退出登陆url
+     *      可以在yml或properties文件里通过 yafey.security.browser.signOutUrl 进行指定
+     *      我指定的默认值为"/" --- 因为如果不指定一个默认的url时，配置授权那一块会报错
+     */
+    private String signOutSuccessUrl;
+    
+    private ObjectMapper objectMapper = new ObjectMapper();
+    
+    public YafeyLogoutSuccessHandler(String signOutSuccessUrl) {
+        this.signOutSuccessUrl = signOutSuccessUrl;
+    }
+
+    @Override
+    public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)
+            throws IOException, ServletException {
+
+        log.info("退出成功");
+        //如果没有指定退出成功的页面则返回前端一个json字符串
+        if (StringUtils.equalsIgnoreCase("/",signOutSuccessUrl)) {
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write(objectMapper.writeValueAsString(new SimpleResponse("退出成功")));
+        } else {
+            //重定向到退出成功登陆页面
+            response.sendRedirect(signOutSuccessUrl);
+        }
+    }
+}
+```
+
+访问 http://localhost/self-login.html 登陆成功后，访问 http://localhost/demo-index.html 点击 退出 。
+
+- yaml 未指定 signOutUrl
+
+  ![image-20200313220348448](README_images/5/image-20200313220348448.png)
+
+- yaml 里指定了 signOutUrl 为 `yafey.security.browser.signOutUrl=/yafey-logout.html`
+
+  ![image-20200313222334911](README_images/5/image-20200313222334911.png)
+
+  
+
+
+
+**清除当前用户的 remember-me 记录**
+
+如果登陆时 勾选 记住我， persistent_logins 会多一条记录， 默认的退出机制 会将这条 也删除。
+
+![image-20200313223112276](README_images/5/image-20200313223112276.png)
+
