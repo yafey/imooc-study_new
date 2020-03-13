@@ -2261,3 +2261,152 @@ BrowserSecurityConfig 中修改为 `.maxSessionsPreventsLogin(true)` , 感觉貌
 session 超时后， 访问 html 结尾的 url （如：http://localhost/me.html) 引导到 默认的 html 页面。详见 提交。
 
 ![image-20200313134721656](README_images/5/image-20200313134721656.png)
+
+
+
+
+
+## 5.8(5-10). session集群管理
+
+> 整理自 ： 
+>
+> https://blog.csdn.net/dandandeshangni/article/details/79108696
+>
+> https://blog.csdn.net/nrsc272420199/article/details/101123577
+>
+> 关于更多Spring Session可参考：[程序猿DD](http://blog.didispace.com/tags/Spring-Session/)
+
+session集群管理，或者说session共享我想大家都懂，这里我就不过多叙述了。
+
+![image-20200313140019255](README_images/5/image-20200313140019255.png)
+
+session 支持的 存储 定义在 StoreType 类 中：（在 Spring-Session 依赖中）
+
+```java
+package org.springframework.boot.autoconfigure.session;
+
+public enum StoreType {
+
+	/** Redis backed sessions. */
+	REDIS,
+
+	/** Mongo backed sessions. */
+	MONGO,
+
+	/** JDBC backed sessions. */
+	JDBC,
+
+	/** Hazelcast backed sessions. */
+	HAZELCAST,
+
+	/** Simple in-memory map of sessions. */
+	HASH_MAP,
+
+	/** No session data-store. */
+	NONE;
+}
+```
+
+
+
+### 5.8.1. 集群环境Session处理
+
+> springboot版本为2.1.8.RELEASE 的配置如下：
+>
+> - 首先需要在pom.xml里再引入如下两个依赖
+>
+>   ```xml
+>   <dependency>
+>     <groupId>org.springframework.session</groupId>
+>     <artifactId>spring-session-data-redis</artifactId>
+>   </dependency>
+>   <dependency>
+>     <groupId>org.springframework.boot</groupId>
+>     <artifactId>spring-boot-starter-data-redis</artifactId>
+>   </dependency>
+>   ```
+>
+> - 其次需要在yml或properties文件里指定存储session信息的为redis、并配置redis的数据库信息
+>
+>   ```yaml
+>   spring:
+>     ### 指定用什么存储session信息---可选项可参看源码StoreType枚举类
+>     session:
+>       store-type: redis
+>     ###本地环境下不配置也可以
+>   #  redis:
+>   #    host: 127.0.0.1
+>   #    port: 6379
+>   #    password: 123
+>   #    database: 0
+>   ```
+
+1. 添加spring-session-data-redis依赖
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.session</groupId>
+       <artifactId>spring-session-data-redis</artifactId>
+   </dependency>
+   ```
+
+2. 配置Spring-session存储策略
+
+   ```yaml
+     redis:   ###本地环境下不配置也可以
+       host: localhost
+       port: 6379
+     session:
+       store-type: redis  ### 指定用什么存储session信息---可选项可参看源码StoreType枚举类
+   ```
+
+3. **强调一点：存到redis里的对象必须是序列化的即实现了Serializable 接口 — 其属性如果是一个对象的话，也必须实现了Serializable 接口。**
+
+   可能遇到的问题，详见 5.8.2 。
+
+4. 测试`80`和`8060`端口分别启动项目
+
+   ```
+   java -jar spring-security.jar --server.port=80
+   java -jar spring-security.jar --server.port=8060
+   ```
+
+   - 访问 80 并登陆
+
+   - 在不登陆的情况下直接访问8060服务器的接口 — 无需登陆可直接获得到数据，证明我们借助redis搭建的session集群管理已经生效。
+
+     
+
+     ![image-20200313150342952](README_images/5/image-20200313150342952.png)
+
+   - 再看一下存到redis里的数据内容：
+
+     
+
+     ![image-20200313153210183](README_images/5/image-20200313153210183.png)
+
+5.  **同时 前面的 session超时时间设置和并发控制功能都仍然有效。**
+
+
+
+### 5.8.2 ImageCode 不显示 和 `序列化`报错问题
+
+启动我们的项目，访问登陆页发现图形验证码显示不出来，后端报如下错误：
+
+![在这里插入图片描述](README_images/5/20190922091512196.png)
+
+后端报错信息
+
+```
+org.springframework.data.redis.serializer.SerializationException: Cannot serialize; nested exception is org.springframework.core.serializer.support.SerializationFailedException: Failed to serialize object using DefaultSerializer; nested exception is java.lang.IllegalArgumentException: DefaultSerializer requires a Serializable payload but received an object of type [com.yafey.security.core.validate.code.image.ImageCode]
+```
+
+
+
+原因(非常重要)
+由于我们项目里ImageCode对象没有实现Serializable 接口，且该类里有一个属性 — BufferedImage对象，该对象也没有实现Serializable 接口，因此才会报出序列化错误。
+
+- 解决办法是 ： 
+  - ValidateCode 实现 Serializable 接口。
+  - BufferedImage 对象因为无法 实现 Serializable 接口。换个思路，修改代码，我们不需要把 图片保存到 session 中， 只需要把 验证码 放到 session 中即可。
+

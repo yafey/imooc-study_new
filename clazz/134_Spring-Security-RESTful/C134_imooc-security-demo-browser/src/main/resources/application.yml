@@ -11,8 +11,13 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
   # No Spring Session store is configured: set the 'spring.session.store-type' property
+  redis:   ###本地环境下不配置也可以
+    host: localhost
+    port: 6379
+#    password: 123
+#    database: 0
   session:
-    store-type: none
+    store-type: redis  ### 指定用什么存储session信息---可选项可参看源码StoreType枚举类
 # 禁用 身份认证
 #security:
 #  basic:
