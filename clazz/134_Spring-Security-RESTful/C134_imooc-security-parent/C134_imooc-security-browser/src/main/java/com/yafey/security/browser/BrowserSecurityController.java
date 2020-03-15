@@ -21,9 +21,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.ServletWebRequest;
 
-import com.yafey.security.browser.support.SimpleResponse;
 import com.yafey.security.browser.support.SocialUserInfo;
 import com.yafey.security.core.properties.SecurityProperties;
+import com.yafey.security.core.support.SimpleResponse;
 
 import lombok.extern.slf4j.Slf4j;
 

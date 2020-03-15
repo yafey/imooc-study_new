@@ -13,7 +13,7 @@ import org.springframework.security.web.util.UrlUtils;
 import org.springframework.util.Assert;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yafey.security.browser.support.SimpleResponse;
+import com.yafey.security.core.support.SimpleResponse;
 
 import lombok.extern.slf4j.Slf4j;
 

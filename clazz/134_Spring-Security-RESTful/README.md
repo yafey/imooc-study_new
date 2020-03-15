@@ -3,7 +3,15 @@ typora-root-url: ./
 typora-copy-images-to: ./README_images/
 ---
 
-[Spring Security 常见用法(第4章) 及 授权机制(第7章)](4_and_7_SpringSecurity.md)
+[Spring Security 常见用法(第4章)](4_and_7_SpringSecurity.md)
+
+[第5章 使用 Spring Social 开发第三方登录](Chapter5_SpringSocail.md)
+
+[第6章 Spring Security OAuth 开发 APP 认证框架](Chapter6_SpringSecurityOAuth_Token_JWT.md)
+
+
+
+
 
 # 目录
 

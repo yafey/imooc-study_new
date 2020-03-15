@@ -9,9 +9,14 @@
 	</parent>
 	<artifactId>C134_imooc-security-demo-browser</artifactId>
 	<dependencies>
-		<dependency>
+		<!-- <dependency>
 			<groupId>com.yafey</groupId>
 			<artifactId>C134_imooc-security-browser</artifactId>
+			<version>${imooc.security.version}</version>
+		</dependency> -->
+		<dependency>
+			<groupId>com.yafey</groupId>
+			<artifactId>C134_imooc-security-app</artifactId>
 			<version>${imooc.security.version}</version>
 		</dependency>
 		<dependency>

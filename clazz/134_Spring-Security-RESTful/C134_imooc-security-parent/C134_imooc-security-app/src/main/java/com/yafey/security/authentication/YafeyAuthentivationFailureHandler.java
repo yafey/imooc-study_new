@@ -1,4 +1,4 @@
-package com.yafey.security.browser;
+package com.yafey.security.authentication;
 
 import java.io.IOException;
 

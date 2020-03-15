@@ -1,4 +1,4 @@
-package com.yafey.security.browser.support;
+package com.yafey.security.core.support;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

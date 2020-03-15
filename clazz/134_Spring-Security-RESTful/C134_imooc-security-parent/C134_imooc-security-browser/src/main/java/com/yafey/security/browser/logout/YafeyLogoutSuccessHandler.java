@@ -11,7 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yafey.security.browser.support.SimpleResponse;
+import com.yafey.security.core.support.SimpleResponse;
 
 import lombok.extern.slf4j.Slf4j;
 
