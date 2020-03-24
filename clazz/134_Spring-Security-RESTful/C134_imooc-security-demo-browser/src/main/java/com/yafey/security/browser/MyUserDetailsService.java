@@ -28,7 +28,7 @@ public class MyUserDetailsService implements UserDetailsService,SocialUserDetail
         log.info("数据库密码是：{}",password);
         //参数：用户名，密码，权限集合
         User user = new User(username, password,
-        		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
+        		AuthorityUtils.commaSeparatedStringToAuthorityList("admin,ROLE_USER"));
 //        User user = new User(username, "123qwe",
 //        		true,true,true,false,//该账户被锁定
 //        		AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
