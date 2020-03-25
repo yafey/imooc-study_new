@@ -832,3 +832,202 @@ public class ImoocResourcesServerConfig {
 
      **至此Spring Security OAuth获取token的核心源码已经解读完毕，从下文开始将参考这些核心源码将我们自定义的认证方式嫁接到spring security oauth框架上。**
 
+
+
+## 6.5(6-4). 重构 用户名密码 登陆
+
+Spring Security OAuth生成token的核心源码，其主要流程如下图 
+
+![https://blog.csdn.net/nrsc272420199/article/details/102635350](README_images/6/20191019104037815.png)
+
+而我们的目标是将Spring Security OAuth默认的走授权流程后发放token的步骤替换成 **走我们自定义的认证方式后发放token**。既然要在我们自定义的认证方式认证成功后才发放token，则我们发放token的代码应该写在`认证成功处理器`（AuthenticationSuccessHandler）里，回看上图联系其源码，可以知道：
+
+> TL;DR
+>
+> 我们自定义的认证方式，在上图中， TokenEndPoint 到 TokenGranter 的步骤是不能常用的；能重用的部分是 最后一块 TokenServices -- 产生令牌。
+>
+> - 在我们的 AuthenticationSuccessHandler 里面 调用 TokenServices 产生令牌当做返回。 不管登陆请求被哪个 filter 拦截，也不管 登陆过程中如何处理， 最终都会交给 AuthenticationSuccessHandler 处理。
+>
+> - 在 AuthenticationSuccessHandler 中已经为我们构建出了 Authentication 对象（登陆成功后就创建好了），因此我们自定义方式认证嫁接到 Spring Security OAuth 框架的过程中不需要考虑该对象 。
+> - 构建出 OAuth2Request 对象，结合 Authentication对象 就能 调用Spring Security OAuth默认的获取token的方法了。
+
+
+
+参照上面的步骤将我们自定义的认证方式嫁接到Spring Security OAuth的大致流程如下：
+
+![在这里插入图片描述](README_images/6/20191019175256328.png)
+
+代码的主要步骤：
+
+1. 从 请求头中的 Authenrization 字段中 解析出 client_id 字段，已经 构建对象 及 调用 TokenServices 。
+
+   - 这块工作其实是 Basic 登陆的流程，可以从 Spring 的 BasicAuthenticationFilter 中拷贝部分代码（L155-166 左右） 。
+
+   ```java
+   package com.yafey.security.authentication;
+   
+   @Slf4j
+   @Component("yafeyAuthentivationSuccessHandler")
+   // SavedRequestAwareAuthenticationSuccessHandler 类是 Spring Security 提供的默认的登录成功处理器
+   public class YafeyAuthentivationSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
+   
+   	@Autowired
+   	private ObjectMapper objectMapper;
+   
+       @Autowired
+       private ClientDetailsService clientDetailsService;
+   
+       @Autowired
+       private AuthorizationServerTokenServices authorizationServerTokenServices;
+       
+   
+   	@Override
+   	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+   			Authentication authentication) throws IOException, ServletException {
+   		log.info("登录成功");
+   
+   		// 请求头的 Authorization 里存放了 ClientId 和 ClientSecret
+   		// 从请求头里获取 Authorization 信息可参考 BasicAuthenticationFilter 类 L155-166
+   		String header = request.getHeader("Authorization");
+   
+   		if (header == null || !header.startsWith("Basic ")) {
+   			throw new UnapprovedClientAuthenticationException("请求头中无client信息");
+   		}
+   
+   		String[] tokens = extractAndDecodeHeader(header, request);
+   		assert tokens.length == 2;
+   
+   		String clientId = tokens[0];
+   		String clientSecret = tokens[1];
+   
+   		// 根据clientId获取ClientDetails对象 --- ClientDetails为第三方应用的信息
+   		// 现在配置在了yml文件里，真实项目中应该放在数据库里
+   		ClientDetails clientDetails = clientDetailsService.loadClientByClientId(clientId);
+   
+   		// 对获取到的clientDetails进行校验
+   		if (clientDetails == null) {
+   			throw new UnapprovedClientAuthenticationException("clientId对应的配置信息不存在:" + clientId);
+   		} else if (!StringUtils.equals(clientDetails.getClientSecret(), clientSecret)) {
+   			throw new UnapprovedClientAuthenticationException("clientSecret不匹配:" + clientId);
+   		}
+   
+   		// 第一个参数为请求参数的一个Map集合，
+   		// 在Spring Security OAuth的源码里要用这个Map里的用户名+密码或授权码来生成Authentication对象,
+   		// 但我们已经获取到了Authentication对象，所以这里可以直接传一个空的Map
+   		// 第三个参数为scope即请求的权限 ---》这里的策略是获得的ClientDetails对象里配了什么权限就给什么权限 //todo
+   		// 第四个参数为指定什么模式 比如密码模式为password，授权码模式为authorization_code，这里我们写一个自定义模式custom
+   		TokenRequest tokenRequest = new TokenRequest(MapUtils.EMPTY_MAP, clientId, clientDetails.getScope(), "custom");
+   
+   		// 获取OAuth2Request对象
+   		// 源码中是这么写的 --- todo 有兴趣的可以看一下
+   		// OAuth2Request storedOAuth2Request = getRequestFactory().createOAuth2Request(client, tokenRequest);
+   		OAuth2Request oAuth2Request = tokenRequest.createOAuth2Request(clientDetails);
+   
+   		// new出一个OAuth2Authentication对象
+   		OAuth2Authentication oAuth2Authentication = new OAuth2Authentication(oAuth2Request, authentication);
+   
+   		// 生成token
+   		OAuth2AccessToken token = authorizationServerTokenServices.createAccessToken(oAuth2Authentication);
+   		// 将生成的token返回
+   		response.setContentType("application/json;charset=UTF-8");
+   		response.getWriter().write(objectMapper.writeValueAsString(token));
+   	}
+   
+   	/**
+   	 * 从header获取Authentication信息 --- 》 clientId和clientSecret
+   	 * 
+   	 * @param header
+   	 * @param request
+   	 * @return
+   	 * @throws IOException
+   	 */
+   	private String[] extractAndDecodeHeader(String header, HttpServletRequest request) throws IOException {
+   
+   		byte[] base64Token = header.substring(6).getBytes("UTF-8");
+   		byte[] decoded;
+   		try {
+   			decoded = Base64.decode(base64Token);
+   		} catch (IllegalArgumentException e) {
+   			throw new BadCredentialsException("Failed to decode basic authentication token");
+   		}
+   		String token = new String(decoded, "UTF-8");
+   		int delim = token.indexOf(":");
+   
+   		if (delim == -1) {
+   			throw new BadCredentialsException("Invalid basic authentication token");
+   		}
+   		return new String[] { token.substring(0, delim), token.substring(delim + 1) };
+   	}
+   }
+   ```
+
+2. app 模块加入安全配置信息 — 让我们自定义的认证方式生效
+
+   ```java
+   package com.imooc.security.app;
+   
+   @Configuration
+   @EnableResourceServer
+   public class ImoocResourcesServerConfig extends ResourceServerConfigurerAdapter {
+   	@Autowired
+   	protected AuthenticationSuccessHandler authenticationSuccessHandler;
+   
+   	@Autowired
+   	protected AuthenticationFailureHandler authenticationFailureHandler;
+   
+   	@Autowired
+   	private SmsCodeAuthenticationSecurityConfig smsCodeAuthenticationSecurityConfig;
+   
+   	@Autowired
+   	private ValidateCodeSecurityConfig validateCodeSecurityConfig;
+   
+   	/**
+   	 * @see SocialConfig#nrscSocialSecurityConfig()
+   	 */
+   	@Autowired
+   	private SpringSocialConfigurer socialSecurityConfig;
+   
+   	@Autowired
+   	private SecurityProperties securityProperties;
+   
+   	@Override
+   	public void configure(HttpSecurity http) throws Exception {
+   
+   		http.formLogin().loginPage(SecurityConstants.DEFAULT_UNAUTHENTICATION_URL)
+   				.loginProcessingUrl(SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_FORM)
+   				.successHandler(authenticationSuccessHandler).failureHandler(authenticationFailureHandler);
+   
+   		// 验证码有一些问题：因为验证码会放到session里，校验也需要从session里取，
+   		// 但是在token认证的情景下是不需session参与的
+   		// 所以这里先注释掉，下篇文章再解决
+   		http// .apply(validateCodeSecurityConfig)
+   			// .and()
+   				.apply(smsCodeAuthenticationSecurityConfig).and().apply(socialSecurityConfig).and().authorizeRequests()
+   				.antMatchers(SecurityConstants.DEFAULT_UNAUTHENTICATION_URL,
+   						SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_MOBILE,
+   						securityProperties.getBrowser().getLoginPage(),
+   						SecurityConstants.DEFAULT_VALIDATE_CODE_URL_PREFIX + "/*",
+   						securityProperties.getBrowser().getSignUpUrl(),
+   						securityProperties.getBrowser().getSession().getSessionInvalidUrl(),
+   						securityProperties.getBrowser().getSignOutUrl(), "/user/regist")
+   				.permitAll().anyRequest().authenticated().and().csrf().disable();
+   	}
+   }
+   ```
+
+   
+
+测试
+
+1. 登陆测试
+
+   发送的登陆请求为POST请求,路径为http://127.0.0.1:8080/authentication/form ，同时需要再请求头里加上Client-Id和Client-Secret，请求参数为username和password
+   可以看到已经获取到了token信息
+
+   ![在这里插入图片描述](README_images/6/20191019191551979.png)
+
+2. 拿着刚才生成的token请求资源服务器的接口
+
+   可以看到已经获取到了用户信息
+
+   ![在这里插入图片描述](README_images/6/20191019192110317.png)
