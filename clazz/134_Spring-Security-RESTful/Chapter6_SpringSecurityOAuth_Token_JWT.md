@@ -836,6 +836,8 @@ public class ImoocResourcesServerConfig {
 
 ## 6.5(6-4). 重构 用户名密码 登陆
 
+> 本节 整理自 ： https://blog.csdn.net/nrsc272420199/article/details/102640688
+
 Spring Security OAuth生成token的核心源码，其主要流程如下图 
 
 ![https://blog.csdn.net/nrsc272420199/article/details/102635350](README_images/6/20191019104037815.png)
@@ -1031,3 +1033,154 @@ Spring Security OAuth生成token的核心源码，其主要流程如下图
    可以看到已经获取到了用户信息
 
    ![在这里插入图片描述](README_images/6/20191019192110317.png)
+
+
+
+
+
+## 6.6(6-5). 将 验证码登陆 嫁接到 Spring Security OAuth
+
+> 本节 整理自 https://blog.csdn.net/nrsc272420199/article/details/102643026
+
+
+
+### 6.6.0. 验证码登陆需要解决的问题和解决方式
+
+即之前开发的短信登陆和图形验证码都是基于cookie和session的，但是基于token的认证方式根本就不会cookie和session。其实解决方式也简单，就是把原来存放到session中的验证码，我们直接存到数据库（如redis）中，然后验证的时候再去数据库里把这个验证码拿出来进行验证就可以了。
+
+![在这里插入图片描述](README_images/6/20191019214117953.png)
+
+
+
+### 6.6.1. 将短信登陆嫁接到Spring Security OAuth
+
+1. 将注释掉的验证码相关配置信息放开
+   *直接看 commit 记录吧*。
+
+2. 修改保存、获取和移出验证码的逻辑
+
+   由于浏览器项目还是可以使用之前的cookie+session的方式保存、获取和移出验证码，而app项目需要将用到数据库（如redis）+deviceId（数据库相当于session、deviceId相当于cookie）的方式来保存、获取和移出验证码。两种项目都需要做保存、获取和移出验证码的动作，因此可以采用 `模版模式+策略模式` 的方式进行开发。
+
+   - 定义保存、获取和移出验证码的模板接口
+
+     ```java
+     package com.yafey.security.core.validate.code;
+     
+     public interface ValidateCodeRepository {
+         /**
+          * 保存验证码
+          * @param request
+          * @param code
+          * @param validateCodeType
+          */
+         void save(ServletWebRequest request, ValidateCode code, ValidateCodeType validateCodeType);
+         /**
+          * 获取验证码
+          * @param request
+          * @param validateCodeType
+          * @return
+          */
+         ValidateCode get(ServletWebRequest request, ValidateCodeType validateCodeType);
+         /**
+          * 移除验证码
+          * @param request
+          * @param codeType
+          */
+         void remove(ServletWebRequest request, ValidateCodeType codeType);
+     }
+     ```
+
+   - 浏览器项目使用cookie+session的方式进行验证码的存、取、删
+
+     *直接看 commit 记录吧*。 `SessionValidateCodeRepository` 
+
+   - app项目使用redis+deviceId的方式进行验证码的存、取、删
+
+     ```java
+     package com.yafey.security.app.validate.code.impl;
+     
+     /**
+      * Description：使用redis+deviceId的方式进行验证码的存、取、删
+      */
+     @Component
+     public class RedisValidateCodeRepository implements ValidateCodeRepository {
+         @Autowired
+         private RedisTemplate<Object, Object> redisTemplate;
+     
+     
+         @Override
+         public void save(ServletWebRequest request, ValidateCode code, ValidateCodeType type) {
+             redisTemplate.opsForValue().set(buildKey(request, type), code, 30, TimeUnit.MINUTES);
+         }
+     
+         @Override
+         public ValidateCode get(ServletWebRequest request, ValidateCodeType type) {
+             Object value = redisTemplate.opsForValue().get(buildKey(request, type));
+             if (value == null) {
+                 return null;
+             }
+             return (ValidateCode) value;
+         }
+     
+         @Override
+         public void remove(ServletWebRequest request, ValidateCodeType type) {
+             redisTemplate.delete(buildKey(request, type));
+         }
+     
+         /**
+          * 构建验证码在redis中的key ---- 该key类似与cookie
+          * @param request
+          * @param type
+          * @return
+          */
+         private String buildKey(ServletWebRequest request, ValidateCodeType type) {
+             String deviceId = request.getHeader("deviceId");
+             if (StringUtils.isBlank(deviceId)) {
+                 throw new ValidateCodeException("请在请求头中携带deviceId参数");
+             }
+             return "code:" + type.toString().toLowerCase() + ":" + deviceId;
+         }
+     }
+     ```
+
+     
+
+3. 修改原来保存、获取和移出验证码的代码
+
+   其实就是将原来保存、获取和移出验证码的代码改成调用 `ValidateCodeRepository` 接口的方法，`改动主只在AbstractValidateCodeProcessor`抽象类里，可以看commit 记录，这里不再贴代码了。[AbstractValidateCodeProcessor.java](/src/main/java/com/yafey/security/core/validate/code/impl/AbstractValidateCodeProcessor.java)
+
+
+
+测试
+
+1. 获取短信验证码
+
+   ![在这里插入图片描述](README_images/6/2019101922515841.png)
+
+   - 此时后端会打印获取到的短息验证码，如下图：
+
+   ![在这里插入图片描述](README_images/6/20191019230405978.png)
+
+   - 此时redis里已经保存了我们的验证码 — `验证码保存成功`
+
+     ![](README_images/6/20191019230512756.png)
+
+2. 发送通过短信验证码登陆的请求
+
+   ![在这里插入图片描述](README_images/6/2019101923085126.png)
+
+   - 但是为了验证我们没使用cookie+session的机制，我们可以将上面的请求通过点击上图的Code生成一个curl请求，如下图：
+
+     ![在这里插入图片描述](README_images/6/2019101923210765.png)
+
+   - 我们拿着这个请求利用git命令行发起请求，从下图可知我们可以得到token，`这表明①我们没有用cookie和session的机制，②通过header里传的deviceId从redis获取验证码的功能+校验验证码的功能都是成功的`。
+
+     ![在这里插入图片描述](README_images/6/20191019231932692.png)
+
+   - 同时当获取到token之后再看redis数据库，我们可以发现数据库里已经被置空了，如下图。`这表明我们从redis移出验证码功能的开发也是成功的`。
+
+     ![在这里插入图片描述](README_images/6/20191019232915381.png)
+
+     
+
+3. 图形验证码应该也好了，这里不验证了。
