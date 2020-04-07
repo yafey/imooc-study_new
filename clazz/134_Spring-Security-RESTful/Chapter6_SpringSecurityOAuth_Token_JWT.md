@@ -1493,18 +1493,6 @@ Spring Security OAuth生成token的核心源码，其主要流程如下图
    ```java
    package com.imooc.security.app.social.openid;
    
-   import org.springframework.beans.factory.annotation.Autowired;
-   import org.springframework.security.authentication.AuthenticationManager;
-   import org.springframework.security.config.annotation.SecurityConfigurerAdapter;
-   import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-   import org.springframework.security.web.DefaultSecurityFilterChain;
-   import org.springframework.security.web.authentication.AuthenticationFailureHandler;
-   import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-   import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-   import org.springframework.social.connect.UsersConnectionRepository;
-   import org.springframework.social.security.SocialUserDetailsService;
-   import org.springframework.stereotype.Component;
-   
    /**
     * Description：校验openId的配置类---》将校验规则等配置到spring-security过滤器链中
     */
@@ -1568,3 +1556,139 @@ Spring Security OAuth生成token的核心源码，其主要流程如下图
    具体测试如下结果如下。说明基于openId的登陆认证方式已经生效。
 
    ![在这里插入图片描述](README_images/6/20191020231919832.png)
+
+
+
+### 6.7.2. SDK 为 授权码模式时，开发社交登陆。
+
+> 服务提供商的SDK使用授权码模式时，开发社交登陆的基本原理和过程。
+
+基本原理如下
+
+![在这里插入图片描述](README_images/6/20191021221427630.png)
+
+而我们之前实现的QQ、微信登陆的基本原理如下：
+
+![在这里插入图片描述](README_images/6/20191021222036720.png)
+
+两张图一进行对比，我们就可以很清楚的看到，在我们现有的基础上，我们要做的事主要有以下两件：
+
+- 开发一个APP，然后将的原来浏览器项目里的0、1、2、3这四步转移到APP项目里；
+
+- 在APP接到授权码后将授权码发给我们开发的第三方应用，然后第三方应用拿着获取的授权码向服务商的认证服务器申请令牌
+
+  
+
+这里0、1、2、3不具体开发了，代替做法为：
+
+> （1）先在浏览器项目里走0、1、2、3步，然后在申请令牌之前打一个断点，获取到授权码
+> （2）紧接着再切到APP项目，拿着授权码去申请令牌
+> （3）接着会走APP项目的6、7两步
+> （4）然后会拿着获取到的用户信息构建Authentication对象
+> （5）构建成功会走APP的成功处理器，并获取到accessToken
+
+其中（3）、（4）两步其实我们不用管，因为我们之前都已经开发完，第（5）步在APP项目里会有点问题，一会我们再说。接下来我们先完成（1）、（2）两步。
+
+
+
+#### 通过browser项目获取授权码
+
+**步骤：**
+（1）将demo项目app依赖先注掉，改为引browser，如下图
+
+![在这里插入图片描述](README_images/6/20191021225108992.png)
+
+（2）端口号改为80
+（3）启动项目，进行微信扫码登陆，并在org.springframework.social.security.provider.OAuth2AuthenticationService中的拿着授权码请求token的代码之前打上断点，获取到授权码，然后将服务断掉，就可以获得服务提供商拿着授权码调用我们服务的url，如下图：
+
+![在这里插入图片描述](README_images/6/20191021233647852.png)
+
+（4）将demo项目browser依赖先注掉，改为引app，然后启动项目
+（5）我们拿着服务提供商回调我们的服务器的URL（即上图的url）和我们之前配置的访问我们自己的认证服务器需要携带的client-id和client-id（比如我配置的为nrsc，123456）调用我们自己的APP项目，如下图：
+
+![在这里插入图片描述](README_images/6/20191021234323442.png)
+
+发现并没有按照我们预想的获取到accessToken，打断点跟踪可以发现，原来认证成功后，并没有走我们在APP项目里定义的认证成功处理器，而是走了spring-security默认的成功处理器，原因是之前写处理springsocial的过滤器配置时，没有指定过滤器的成功处理器，所以走了默认的 —》这里就是1中所说的第（5）步出现的问题。
+
+
+
+#### APP下指定spring social的成功处理器使用APP的成功处理器
+
+代码开发
+spring-security的默认成功处理器为认证成功后重新调用促发请求认证的url，在这browser项目里是没问题的，但在app项目里我们是想让它认证成功后调用成功处理器返回一个token，因此可以将这两块逻辑分别处理：
+
+- 浏览器项目里仍然使用spring-security默认的成功处理器
+
+- app项目里调用app项目的成功处理器
+
+  
+
+具体实现如下：
+
+(1) 定义一个指定springsocial过滤器成功处理器的接口
+
+```java
+package com.nrsc.security.core.social;
+
+import org.springframework.social.security.SocialAuthenticationFilter;
+
+/**
+ * @author : Sun Chuan
+ * @date : 2019/10/22 0:14
+ * Description：指定springsocial成功处理器的接口
+ */
+public interface SocialAuthenticationFilterPostProcessor {
+
+    /**
+     * 参数为springsocial的过滤器  
+     * @param socialAuthenticationFilter
+     */
+    void process(SocialAuthenticationFilter socialAuthenticationFilter);
+}
+```
+
+
+
+（2）在APP项目里实现上面的接口，并指定springsocial的成功处理器为可以返回token的成功处理器
+
+```java
+package com.nrsc.security.app.social.impl;
+
+import com.nrsc.security.core.social.SocialAuthenticationFilterPostProcessor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.social.security.SocialAuthenticationFilter;
+import org.springframework.stereotype.Component;
+
+/**
+ * @author : Sun Chuan
+ * @date : 2019/10/22 0:26
+ * Description：设置app下springsocial走的成功处理器
+ */
+@Component
+public class AppSocialAuthenticationFilterPostProcessor implements SocialAuthenticationFilterPostProcessor {
+     //认证成功后返回token的成功处理器
+    @Autowired
+    private AuthenticationSuccessHandler NRSCAuthenticationSuccessHandler;
+    @Override
+    public void process(SocialAuthenticationFilter socialAuthenticationFilter) {
+        socialAuthenticationFilter.setAuthenticationSuccessHandler(NRSCAuthenticationSuccessHandler);
+    }
+}
+```
+
+(3)在配置文件里让其生效
+这块代码不贴了，感兴趣的请看commit记录。
+
+#### 测试
+
+重新走2中的流程，即先在browser项目里登陆获取授权码，然后停掉，再将app项目启动，然后拿着服务提供商回调的URL和我们自己的认证服务器需要携带的client-id和client-id（比如我配置的为nrsc，123456）调用我们自己的APP项目就可以获取到我们项目的认证服务器发放的accessToken了，如下图。
+
+这说明当服务提供商提供的SDK使用授权码模式时，开发APP社交登陆的整个流程已经走通。
+
+
+
+![在这里插入图片描述](README_images/6/20191022092731734.png)
+
+
+

@@ -18,6 +18,7 @@ import org.springframework.social.connect.web.ProviderSignInUtils;
 import org.springframework.social.security.SpringSocialConfigurer;
 import org.springframework.web.servlet.View;
 
+import com.imooc.security.core.social.SocialAuthenticationFilterPostProcessor;
 import com.yafey.security.core.properties.SecurityProperties;
 import com.yafey.security.core.social.jdbc.YafeyJdbcUsersConnectionRepository;
 
@@ -33,6 +34,10 @@ public class SocialConfig extends SocialConfigurerAdapter {
 	
 	@Autowired(required = false)
 	private ConnectionSignUp connectionSignUp;
+	
+	//设置springsocial成功处理器相关的类
+    @Autowired(required = false)
+    private SocialAuthenticationFilterPostProcessor socialAuthenticationFilterPostProcessor;
 
 	@Override
 	public UsersConnectionRepository getUsersConnectionRepository(ConnectionFactoryLocator connectionFactoryLocator) {
@@ -54,6 +59,9 @@ public class SocialConfig extends SocialConfigurerAdapter {
 		String filterProcessesUrl = securityProperties.getSocial().getFilterProcessesUrl();
 		YafeySpringSocialConfigurer configurer = new YafeySpringSocialConfigurer(filterProcessesUrl);
 		configurer.signupUrl(securityProperties.getBrowser().getSignUpUrl()); // 当找不到用户时，跳转到 注册页面。
+		
+		//设置springsocial的认证成功处理器 -- app下可以返回token，browser下使用spring-security默认的
+        configurer.setSocialAuthenticationFilterPostProcessor(socialAuthenticationFilterPostProcessor);
 		return configurer;
 	}
 	

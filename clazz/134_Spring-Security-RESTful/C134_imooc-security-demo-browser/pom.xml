@@ -19,6 +19,13 @@
 			<artifactId>C134_imooc-security-app</artifactId>
 			<version>${imooc.security.version}</version>
 		</dependency>
+		<!--        
+		<dependency>
+            <groupId>com.nrsc.security</groupId>
+            <artifactId>nrsc-security-browser</artifactId>
+            <version>${nrsc.security.version}</version>
+        </dependency>
+        -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
