@@ -1184,3 +1184,387 @@ Spring Security OAuth生成token的核心源码，其主要流程如下图
      
 
 3. 图形验证码应该也好了，这里不验证了。
+
+
+
+## 6.7(6-6). 重构 社交登陆
+
+> 本节整理自 ： https://blog.csdn.net/nrsc272420199/article/details/102653869
+
+
+
+首先要明确SDK是服务提供商（如QQ、微信等）提供的用于引导第三方应用（比如说我们自己的APP）完成授权流程的工具包，不同的服务提供商的SDK的具体实现是不一样的，选择的授权模式也是不一样的，一般会有两种模式：①简化模式，②授权码模式。
+
+
+
+如果服务提供商（如QQ、微信等）提供的SDK使用的是 **简化模式**：
+
+- 即用户同意授权后就可以获得到 openId（用户在服务提供商上的唯一标识）和服务提供商生成的accessToken了，但是我们并不能拿着这个token访问我们的应用（上图中的第三方应用），因为这个token是服务提供商发放的，不是我们的认证服务器发放的。 — 对应上图1、2、3三步。
+
+- 但是与此同时由于已经获得了openId，我们就可以拿着openId去我们存放本系统用户账号和社交账号对应关系的`userconnection表`(如下图)去验证该账户的信息了。
+
+  ![在这里插入图片描述](README_images/6/20191020215141217.png)
+
+- 如果验证成功，就可以生成一个Authentication对象，然后我们就可以去我们的自己的认证服务器（上图中的第三方应用）获取token了。 — 对应上图4、5两步 。
+
+
+
+> 假设已经走完1-3步，即我们已经获取到了openId，那如何拿着获取到的openId进行认证校验并获取到token呢？其实原理很简单，基本和短信登陆的原理一致：短信登陆是我们获取到了一个短信验证码，然后拿着这个验证码进行校验，并获取到一个token；而这里是拿着openId进行校验，然后获取一个token。
+
+![在这里插入图片描述](README_images/6/20191020211515246.png)
+
+
+
+### 6.7.1 基于openId的认证开发 (简化模式)
+
+> 直接上代码了，如有疑问，可参照一下《[spring-security入门11—短信验证码(三)----短信验证码校验功能开发](https://blog.csdn.net/nrsc272420199/article/details/96198605)》这篇文章 。
+
+1. **用来封装openId和providerId的token — OpenIdAuthenticationToken**
+
+   ```java
+   package com.imooc.security.app.social.openid;
+   
+   /**
+    * Description：模仿UsernamePasswordAuthenticationToken --- 该token用来封装登陆信息
+    */
+   public class OpenIdAuthenticationToken extends AbstractAuthenticationToken {
+   
+       private static final long serialVersionUID = SpringSecurityCoreVersion.SERIAL_VERSION_UID;
+   
+       //即openId
+       private final Object principal;
+       //providerId用来区分是哪个服务提供商
+       private String providerId;
+   
+       public OpenIdAuthenticationToken(String openId, String providerId) {
+           super(null);
+           this.principal = openId;
+           this.providerId = providerId;
+           setAuthenticated(false);
+       }
+       
+       public OpenIdAuthenticationToken(Object principal,
+                                        Collection<? extends GrantedAuthority> authorities) {
+           super(authorities);
+           this.principal = principal;
+           super.setAuthenticated(true); // must use super, as we override
+       }
+   
+       public Object getCredentials() {
+           return null;
+       }
+   
+       public Object getPrincipal() {
+           return this.principal;
+       }
+   
+       public String getProviderId() {
+           return providerId;
+       }
+   
+       public void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException {
+           if (isAuthenticated) {
+               throw new IllegalArgumentException(
+                       "Cannot set this token to trusted - use constructor which takes a GrantedAuthority list instead");
+           }
+   
+           super.setAuthenticated(false);
+       }
+   
+       @Override
+       public void eraseCredentials() {
+           super.eraseCredentials();
+       }
+   }
+   ```
+
+2. **用于处理openId认证的Filter — OpenIdAuthenticationFilter**
+
+   ```java
+   package com.imooc.security.app.social.openid;
+   
+   /**
+    * Description：用于处理校验openId校验的Filter
+    */
+   public class OpenIdAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
+       // ~ Static fields/initializers
+       // =====================================================================================
+   
+       private String openIdParameter = SecurityConstants.DEFAULT_PARAMETER_NAME_OPENID;
+       private String providerIdParameter = SecurityConstants.DEFAULT_PARAMETER_NAME_PROVIDERID;
+       private boolean postOnly = true;
+   
+       // ~ Constructors
+       // ===================================================================================================
+   
+       public OpenIdAuthenticationFilter() {
+           super(new AntPathRequestMatcher(SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_OPENID, "POST"));
+       }
+   
+       // ~ Methods
+       // ========================================================================================================
+   
+       public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
+               throws AuthenticationException {
+           if (postOnly && !request.getMethod().equals("POST")) {
+               throw new AuthenticationServiceException("Authentication method not supported: " + request.getMethod());
+           }
+   
+           String openid = obtainOpenId(request);
+           String providerId = obtainProviderId(request);
+   
+           if (openid == null) {
+               openid = "";
+           }
+           if (providerId == null) {
+               providerId = "";
+           }
+   
+           openid = openid.trim();
+           providerId = providerId.trim();
+   
+           OpenIdAuthenticationToken authRequest = new OpenIdAuthenticationToken(openid, providerId);
+   
+           // Allow subclasses to set the "details" property
+           setDetails(request, authRequest);
+   
+           return this.getAuthenticationManager().authenticate(authRequest);
+       }
+   
+   
+       /**
+        * 获取openId
+        */
+       protected String obtainOpenId(HttpServletRequest request) {
+           return request.getParameter(openIdParameter);
+       }
+   
+       /**
+        * 获取提供商id
+        */
+       protected String obtainProviderId(HttpServletRequest request) {
+           return request.getParameter(providerIdParameter);
+       }
+   
+       /**
+        * Provided so that subclasses may configure what is put into the
+        * authentication request's details property.
+        *
+        * @param request     that an authentication request is being created for
+        * @param authRequest the authentication request object that should have its details
+        *                    set
+        */
+       protected void setDetails(HttpServletRequest request, OpenIdAuthenticationToken authRequest) {
+           authRequest.setDetails(authenticationDetailsSource.buildDetails(request));
+       }
+   
+       /**
+        * Sets the parameter name which will be used to obtain the username from
+        * the login request.
+        *
+        * @param usernameParameter the parameter name. Defaults to "username".
+        */
+       public void setOpenIdParameter(String openIdParameter) {
+           Assert.hasText(openIdParameter, "Username parameter must not be empty or null");
+           this.openIdParameter = openIdParameter;
+       }
+   
+   
+       /**
+        * Defines whether only HTTP POST requests will be allowed by this filter.
+        * If set to true, and an authentication request is received which is not a
+        * POST request, an exception will be raised immediately and authentication
+        * will not be attempted. The <tt>unsuccessfulAuthentication()</tt> method
+        * will be called as if handling a failed authentication.
+        * <p>
+        * Defaults to <tt>true</tt> but may be overridden by subclasses.
+        */
+       public void setPostOnly(boolean postOnly) {
+           this.postOnly = postOnly;
+       }
+   
+       public final String getOpenIdParameter() {
+           return openIdParameter;
+       }
+   
+       public String getProviderIdParameter() {
+           return providerIdParameter;
+       }
+   
+       public void setProviderIdParameter(String providerIdParameter) {
+           this.providerIdParameter = providerIdParameter;
+       }
+   }
+   ```
+
+   
+
+   `注意:`下面代码中涉及到了几个常量，可参看commit记录
+
+   ```java
+   package com.yafey.security.core.properties;
+   
+   public interface SecurityConstants {
+       ... 其他代码 ...
+           /**
+        * 默认的OPENID登录请求处理url
+        */
+       String DEFAULT_LOGIN_PROCESSING_URL_OPENID = "/authentication/openid";
+       
+       /**
+        * openid参数名
+        */
+       String DEFAULT_PARAMETER_NAME_OPENID = "openId";
+       /**
+        * providerId参数名
+        */
+       String DEFAULT_PARAMETER_NAME_PROVIDERID = "providerId";
+   }
+   ```
+
+3. **真正处理校验逻辑的Provider — OpenIdAuthenticationProvider**
+
+   ```java
+   package com.imooc.security.app.social.openid;
+   
+   /**
+    * Description：真正去校验OpenId和providerId封装的OpenIdAuthenticationToken的类
+    */
+   public class OpenIdAuthenticationProvider implements AuthenticationProvider {
+   
+       private SocialUserDetailsService userDetailsService;
+   
+       private UsersConnectionRepository usersConnectionRepository;
+   
+       @Override
+       public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+   
+           OpenIdAuthenticationToken authenticationToken = (OpenIdAuthenticationToken) authentication;
+   
+           Set<String> providerUserIds = new HashSet<>();
+           providerUserIds.add((String) authenticationToken.getPrincipal());
+           Set<String> userIds = usersConnectionRepository.findUserIdsConnectedTo(authenticationToken.getProviderId(), providerUserIds);
+   
+           if(CollectionUtils.isEmpty(userIds) || userIds.size() != 1) {
+               throw new InternalAuthenticationServiceException("无法获取用户信息");
+           }
+   
+           String userId = userIds.iterator().next();
+   
+           UserDetails user = userDetailsService.loadUserByUserId(userId);
+   
+           if (user == null) {
+               throw new InternalAuthenticationServiceException("无法获取用户信息");
+           }
+   
+           OpenIdAuthenticationToken authenticationResult = new OpenIdAuthenticationToken(user, user.getAuthorities());
+   
+           authenticationResult.setDetails(authenticationToken.getDetails());
+   
+           return authenticationResult;
+       }
+   
+   
+       @Override
+       public boolean supports(Class<?> authentication) {
+           return OpenIdAuthenticationToken.class.isAssignableFrom(authentication);
+       }
+   
+       public SocialUserDetailsService getUserDetailsService() {
+           return userDetailsService;
+       }
+   
+       public void setUserDetailsService(SocialUserDetailsService userDetailsService) {
+           this.userDetailsService = userDetailsService;
+       }
+   
+       public UsersConnectionRepository getUsersConnectionRepository() {
+           return usersConnectionRepository;
+       }
+   
+       public void setUsersConnectionRepository(UsersConnectionRepository usersConnectionRepository) {
+           this.usersConnectionRepository = usersConnectionRepository;
+       }
+   }
+   ```
+
+4. **将openId校验逻辑加入到spring-security过滤器的关键配置类 — OpenIdAuthenticationSecurityConfig**
+
+   ```java
+   package com.imooc.security.app.social.openid;
+   
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.security.authentication.AuthenticationManager;
+   import org.springframework.security.config.annotation.SecurityConfigurerAdapter;
+   import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+   import org.springframework.security.web.DefaultSecurityFilterChain;
+   import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+   import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+   import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+   import org.springframework.social.connect.UsersConnectionRepository;
+   import org.springframework.social.security.SocialUserDetailsService;
+   import org.springframework.stereotype.Component;
+   
+   /**
+    * Description：校验openId的配置类---》将校验规则等配置到spring-security过滤器链中
+    */
+   @Component
+   public class OpenIdAuthenticationSecurityConfig extends SecurityConfigurerAdapter<DefaultSecurityFilterChain, HttpSecurity> {
+   
+       @Autowired
+       private AuthenticationSuccessHandler authenticationSuccessHandler;
+   
+       @Autowired
+       private AuthenticationFailureHandler authenticationFailureHandler;
+   
+       @Autowired
+       private SocialUserDetailsService detailsService;
+   
+       @Autowired
+       private UsersConnectionRepository imoocJdbcUsersConnectionRepository;
+   
+       @Override
+       public void configure(HttpSecurity http) throws Exception {
+           //UsersConnectionRepository usersConnectionRepository = new NrscJdbcUsersConnectionRepository();
+           OpenIdAuthenticationFilter OpenIdAuthenticationFilter = new OpenIdAuthenticationFilter();
+           OpenIdAuthenticationFilter.setAuthenticationManager(http.getSharedObject(AuthenticationManager.class));
+           OpenIdAuthenticationFilter.setAuthenticationSuccessHandler(authenticationSuccessHandler);
+           OpenIdAuthenticationFilter.setAuthenticationFailureHandler(authenticationFailureHandler);
+   
+           OpenIdAuthenticationProvider OpenIdAuthenticationProvider = new OpenIdAuthenticationProvider();
+           OpenIdAuthenticationProvider.setUserDetailsService(detailsService);
+           OpenIdAuthenticationProvider.setUsersConnectionRepository(imoocJdbcUsersConnectionRepository);
+   
+           http.authenticationProvider(OpenIdAuthenticationProvider)
+                   .addFilterAfter(OpenIdAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+       }
+   }
+   ```
+
+5. **将配置类加到spring-security过滤器链 — 有兴趣的请看本文对应的commit记录**
+
+   ```java
+   package com.imooc.security.app;
+   @Configuration
+   @EnableResourceServer
+   public class ImoocResourcesServerConfig extends ResourceServerConfigurerAdapter {
+       	
+   	@Autowired
+   	private OpenIdAuthenticationSecurityConfig openIdAuthenticationSecurityConfig;
+   	
+       http// .apply(validateCodeSecurityConfig)
+   			// .and()
+   				.apply(smsCodeAuthenticationSecurityConfig)
+   					.and()
+   				.apply(socialSecurityConfig)
+   					.and()
+   				.apply(openIdAuthenticationSecurityConfig)
+   					.and()
+   				.authorizeRequests()
+   ```
+
+6. 测试
+
+   具体测试如下结果如下。说明基于openId的登陆认证方式已经生效。
+
+   ![在这里插入图片描述](README_images/6/20191020231919832.png)

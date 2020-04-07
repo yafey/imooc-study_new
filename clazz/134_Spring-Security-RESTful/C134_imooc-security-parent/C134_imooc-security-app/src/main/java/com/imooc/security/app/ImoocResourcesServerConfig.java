@@ -9,6 +9,7 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.social.security.SpringSocialConfigurer;
 
+import com.imooc.security.app.social.openid.OpenIdAuthenticationSecurityConfig;
 import com.yafey.security.core.authentication.mobile.SmsCodeAuthenticationSecurityConfig;
 import com.yafey.security.core.properties.SecurityConstants;
 import com.yafey.security.core.properties.SecurityProperties;
@@ -38,7 +39,10 @@ public class ImoocResourcesServerConfig extends ResourceServerConfigurerAdapter 
 
 	@Autowired
 	private SecurityProperties securityProperties;
-
+	
+	@Autowired
+	private OpenIdAuthenticationSecurityConfig openIdAuthenticationSecurityConfig;
+	
 	@Override
 	public void configure(HttpSecurity http) throws Exception {
 
@@ -51,7 +55,13 @@ public class ImoocResourcesServerConfig extends ResourceServerConfigurerAdapter 
 		// 所以这里先注释掉，下篇文章再解决
 		http// .apply(validateCodeSecurityConfig)
 			// .and()
-				.apply(smsCodeAuthenticationSecurityConfig).and().apply(socialSecurityConfig).and().authorizeRequests()
+				.apply(smsCodeAuthenticationSecurityConfig)
+					.and()
+				.apply(socialSecurityConfig)
+					.and()
+				.apply(openIdAuthenticationSecurityConfig)
+					.and()
+				.authorizeRequests()
 				.antMatchers(SecurityConstants.DEFAULT_UNAUTHENTICATION_URL,
 						SecurityConstants.DEFAULT_LOGIN_PROCESSING_URL_MOBILE,
 						securityProperties.getBrowser().getLoginPage(),
