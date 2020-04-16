@@ -54,10 +54,17 @@ public class SocialConfig extends SocialConfigurerAdapter {
 		return repository;
 	}
 	
+    /**
+     * 通过apply()该实例，可以将SocialAuthenticationFilter加入到spring-security的过滤器链
+     */
 	@Bean
 	public SpringSocialConfigurer yafeySocialSecurityConfig() {
+		// 默认配置类，进行组件的组装
+        // 包括了过滤器SocialAuthenticationFilter 添加到security过滤链中
 		String filterProcessesUrl = securityProperties.getSocial().getFilterProcessesUrl();
 		YafeySpringSocialConfigurer configurer = new YafeySpringSocialConfigurer(filterProcessesUrl);
+		
+        //指定SpringSocial/SpringSecurity跳向注册页面时的url为我们配置的url
 		configurer.signupUrl(securityProperties.getBrowser().getSignUpUrl()); // 当找不到用户时，跳转到 注册页面。
 		
 		//设置springsocial的认证成功处理器 -- app下可以返回token，browser下使用spring-security默认的
@@ -65,6 +72,7 @@ public class SocialConfig extends SocialConfigurerAdapter {
 		return configurer;
 	}
 	
+
 	@Bean
 	public ProviderSignInUtils providerSignInUtils(ConnectionFactoryLocator connectionFactoryLocator) {
 		return new ProviderSignInUtils(connectionFactoryLocator,
