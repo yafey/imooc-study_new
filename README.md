@@ -12,7 +12,7 @@
 
 [learn 课程](learn)
 
-- [L767. 2 小时学会 SpringBoot](learn/L767_boot-simple/README.md) 
+- [L767. 2 小时学会 SpringBoot](learn/L767_boot-simple) 
 
 [class 课程](clazz)
 
