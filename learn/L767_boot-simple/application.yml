@@ -1,0 +1,15 @@
+spring:
+  profiles:
+    active: dev
+  datasource:
+  # 不要忘记 create database dbgirl;
+    url: jdbc:mysql://192.168.99.100:3306/dbgirl
+    username: root
+    password: 123456
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    database: mysql
+    #不加下面这句则默认为 MyISAM 引擎
+    database-platform: org.hibernate.dialect.MySQL5InnoDBDialect
