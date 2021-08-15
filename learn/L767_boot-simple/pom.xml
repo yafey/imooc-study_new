@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.yafey</groupId>
-	<artifactId>767_boot-simple</artifactId>
+	<artifactId>L767_boot-simple</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>767_boot-simple</name>
+	<name>L767_boot-simple</name>
 	<description>Demo project for Spring Boot</description>
 
 	<properties>
